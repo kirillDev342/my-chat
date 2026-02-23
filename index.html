@@ -775,56 +775,103 @@
             ]
         };
 
-        async function startVoiceCall() {
-            try {
-                if (users.length === 0) {
-                    showNotification('Нет пользователей онлайн!', 'error');
-                    return;
-                }
-
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    showNotification('✅ Микрофон подключен', 'success');
-                } catch (micErr) {
-                    showNotification('❌ Нет доступа к микрофону! Разреши в браузере', 'error');
-                    return;
-                }
-                
-                peerConnection = new RTCPeerConnection(servers);
-                
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-
-                const targetUser = users[0];
-                
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                
-                socket.emit('call-user', {
-                    to: targetUser,
-                    offer: offer,
-                    from: currentUser
-                });
-
-                showCallPanel('Звонок ' + targetUser, '⏳ Вызываем...');
-                currentCall = {
-                    type: 'outgoing',
-                    to: targetUser
-                };
-                
-                setTimeout(() => {
-                    if (currentCall?.type === 'outgoing') {
-                        endCall();
-                        showNotification('Абонент не ответил', 'info');
-                    }
-                }, 30000);
-                
-            } catch (err) {
-                console.error('Ошибка звонка:', err);
-                showNotification('Ошибка при звонке: ' + err.message, 'error');
+async function startVoiceCall() {
+    console.log('🎤 Нажимаем кнопку звонка...');
+    
+    // Проверка поддержки браузера
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('❌ Твой браузер не поддерживает звонки. Используй Chrome, Firefox или Edge.');
+        return;
+    }
+    
+    // Проверка есть ли кому звонить
+    if (users.length === 0) {
+        alert('❌ Нет пользователей онлайн!');
+        return;
+    }
+    
+    try {
+        // Пытаемся получить микрофон с подробным логом
+        console.log('1️⃣ Запрашиваем доступ к микрофону...');
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
             }
+        });
+        
+        console.log('2️⃣ Микрофон получен!');
+        localStream = stream;
+        
+        // Показываем что микрофон работает
+        alert('✅ Микрофон работает! Сейчас будет звонок.');
+        
+        // Создаем соединение
+        console.log('3️⃣ Создаем соединение...');
+        peerConnection = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        });
+        
+        // Добавляем звук в соединение
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+            console.log('   ➕ Добавлен трек:', track.kind);
+        });
+        
+        // Выбираем кому звонить (первому в списке)
+        const targetUser = users[0];
+        console.log('4️⃣ Звоним пользователю:', targetUser);
+        
+        // Создаем предложение
+        const offer = await peerConnection.createOffer({
+            offerToReceiveAudio: true
+        });
+        await peerConnection.setLocalDescription(offer);
+        console.log('5️⃣ Создано предложение:', offer);
+        
+        // Отправляем звонок
+        socket.emit('call-user', {
+            to: targetUser,
+            offer: offer
+        });
+        
+        // Показываем панель звонка
+        document.getElementById('call-name').textContent = `📞 Звонок ${targetUser}`;
+        document.getElementById('call-status').textContent = '⏳ Вызываем...';
+        document.getElementById('call-panel').style.display = 'block';
+        
+        currentCall = {
+            type: 'outgoing',
+            to: targetUser
+        };
+        
+        // Таймаут на случай если не ответят
+        setTimeout(() => {
+            if (currentCall?.type === 'outgoing') {
+                endCall();
+                alert('⏳ Абонент не ответил');
+            }
+        }, 30000);
+        
+    } catch (err) {
+        console.error('❌ Ошибка:', err);
+        
+        if (err.name === 'NotAllowedError') {
+            alert('❌ Доступ к микрофону запрещен!\n\n1. Нажми на замок 🔒 в адресной строке\n2. Найди "Микрофон"\n3. Выбери "Разрешить"\n4. Обнови страницу');
+        } else if (err.name === 'NotFoundError') {
+            alert('❌ Микрофон не найден!\nПодключи микрофон или проверь настройки звука.');
+        } else if (err.name === 'NotReadableError') {
+            alert('❌ Микрофон уже используется другой программой!\nЗакрой Discord, Zoom, Skype и другие приложения.');
+        } else {
+            alert('❌ Ошибка: ' + err.message);
         }
+    }
+}
 
         socket.on('incoming-call', async (data) => {
             console.log('📞 Входящий звонок от:', data.from);
@@ -985,3 +1032,4 @@
     </script>
 </body>
 </html>
+
