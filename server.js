@@ -19,7 +19,7 @@ let users = {}; // { socketId: username }
 io.on('connection', (socket) => {
     console.log('🟢 Новый пользователь подключился:', socket.id);
 
-    // Обработка входа
+    // ========== ВХОД В ЧАТ ==========
     socket.on('join', (username) => {
         console.log('👤 Попытка входа:', username);
         
@@ -54,12 +54,12 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Обработка запроса списка пользователей
+    // ========== ПОЛУЧИТЬ СПИСОК ПОЛЬЗОВАТЕЛЕЙ ==========
     socket.on('get-users', () => {
         socket.emit('users', Object.values(users));
     });
 
-    // Обработка сообщений
+    // ========== ОТПРАВКА СООБЩЕНИЙ ==========
     socket.on('message', (text) => {
         if (socket.username && text && text.trim()) {
             console.log(`📨 ${socket.username}: ${text}`);
@@ -75,25 +75,29 @@ io.on('connection', (socket) => {
         console.log(`📞 Звонок от ${socket.username} к ${data.to}`);
         
         // Находим сокет получателя
-        const targetSocket = Object.keys(users).find(id => users[id] === data.to);
+        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
         
-        if (targetSocket) {
-            io.to(targetSocket).emit('incoming-call', {
+        if (targetSocketId) {
+            // Отправляем звонок конкретному пользователю
+            io.to(targetSocketId).emit('incoming-call', {
                 from: socket.username,
-                offer: data.offer
+                offer: data.offer,
+                fromId: socket.id
             });
+            console.log(`✅ Звонок отправлен пользователю ${data.to}`);
         } else {
-            socket.emit('call-error', 'Пользователь не найден');
+            console.log(`❌ Пользователь ${data.to} не найден`);
+            socket.emit('call-error', 'Пользователь не найден или офлайн');
         }
     });
 
     socket.on('accept-call', (data) => {
-        console.log(`✅ Звонок принят от ${socket.username} к ${data.to}`);
+        console.log(`✅ Звонок принят от ${socket.username} для ${data.to}`);
         
-        const targetSocket = Object.keys(users).find(id => users[id] === data.to);
+        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
         
-        if (targetSocket) {
-            io.to(targetSocket).emit('call-accepted', {
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-accepted', {
                 from: socket.username,
                 answer: data.answer
             });
@@ -101,29 +105,55 @@ io.on('connection', (socket) => {
     });
 
     socket.on('reject-call', (data) => {
-        console.log(`❌ Звонок отклонен от ${socket.username} к ${data.to}`);
+        console.log(`❌ Звонок отклонен от ${socket.username} для ${data.to}`);
         
-        const targetSocket = Object.keys(users).find(id => users[id] === data.to);
+        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
         
-        if (targetSocket) {
-            io.to(targetSocket).emit('call-rejected', {
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-rejected', {
+                from: socket.username
+            });
+        }
+    });
+
+    socket.on('call-busy', (data) => {
+        console.log(`⏳ Пользователь ${socket.username} занят`);
+        
+        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
+        
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-busy', {
                 from: socket.username
             });
         }
     });
 
     socket.on('ice-candidate', (data) => {
-        const targetSocket = Object.keys(users).find(id => users[id] === data.to);
+        console.log(`❄️ ICE кандидат от ${socket.username} для ${data.to}`);
         
-        if (targetSocket) {
-            io.to(targetSocket).emit('ice-candidate', {
+        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
+        
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('ice-candidate', {
                 from: socket.username,
                 candidate: data.candidate
             });
         }
     });
 
-    // Обработка отключения
+    socket.on('end-call', (data) => {
+        console.log(`📴 Звонок завершен от ${socket.username}`);
+        
+        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
+        
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-ended', {
+                from: socket.username
+            });
+        }
+    });
+
+    // ========== ОТКЛЮЧЕНИЕ ==========
     socket.on('disconnect', () => {
         if (socket.username) {
             console.log('🔴 Пользователь отключился:', socket.username);
