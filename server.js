@@ -17,31 +17,39 @@ app.use(express.static(path.join(__dirname, '/')));
 let users = {};
 
 io.on('connection', (socket) => {
-    console.log('Новый пользователь подключился:', socket.id);
+    console.log('🟢 Новый пользователь подключился:', socket.id);
 
     socket.on('join', (username) => {
-        console.log('Пользователь хочет войти:', username);
+        console.log('👤 Попытка входа:', username);
         
-        if (!username) {
+        if (!username || username.trim() === '') {
             socket.emit('join_error', 'Имя не может быть пустым');
+            return;
+        }
+        
+        if (Object.values(users).includes(username)) {
+            socket.emit('join_error', 'Это имя уже занято');
             return;
         }
         
         socket.username = username;
         users[socket.id] = username;
         
+        console.log('✅ Пользователь вошел:', username);
+        console.log('👥 Текущие пользователи:', Object.values(users));
+        
         socket.emit('join_success');
         
+        // Сообщаем всем о новом пользователе
         io.emit('message', {
-            username: 'Система',
+            username: '🤖 Система',
             text: `${username} присоединился к чату`
         });
-        
-        console.log('Текущие пользователи:', Object.values(users));
     });
 
     socket.on('message', (text) => {
-        if (socket.username) {
+        if (socket.username && text && text.trim()) {
+            console.log(`📨 ${socket.username}: ${text}`);
             io.emit('message', {
                 username: socket.username,
                 text: text
@@ -51,8 +59,13 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         if (socket.username) {
-            console.log('Пользователь отключился:', socket.username);
+            console.log('🔴 Пользователь отключился:', socket.username);
             delete users[socket.id];
+            
+            io.emit('message', {
+                username: '🤖 Система',
+                text: `${socket.username} покинул чат`
+            });
         }
     });
 });
