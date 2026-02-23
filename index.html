@@ -658,12 +658,16 @@
             socket.emit('join', username);
         }
 
-        socket.on('join_success', () => {
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
-            document.getElementById('username-display').textContent = currentUser;
-            showNotification('Добро пожаловать!', 'success');
-        });
+socket.on('join_success', () => {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('username-display').textContent = currentUser;
+    
+    // Запрашиваем список пользователей
+    socket.emit('get-users');
+    
+    showNotification('Добро пожаловать!', 'success');
+});
 
         socket.on('join_error', (error) => {
             showError(error);
@@ -762,31 +766,65 @@
             ]
         };
 
-        async function startVoiceCall() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                peerConnection = new RTCPeerConnection(servers);
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                
-                socket.emit('call-user', {
-                    to: users[0], // Звоним первому в списке
-                    offer: offer
-                });
-
-                showCallPanel('Исходящий звонок', 'Звоним...');
-                currentCall = 'outgoing';
-                
-            } catch (err) {
-                showNotification('Нет доступа к микрофону!', 'error');
-            }
+async function startVoiceCall() {
+    try {
+        // Сначала проверяем, есть ли кому звонить
+        if (users.length === 0) {
+            showNotification('Нет пользователей онлайн!', 'error');
+            return;
         }
 
+        // Запрашиваем доступ к микрофону
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            showNotification('✅ Микрофон подключен', 'success');
+        } catch (micErr) {
+            showNotification('❌ Нет доступа к микрофону! Разреши в браузере', 'error');
+            return;
+        }
+        
+        // Создаем соединение
+        peerConnection = new RTCPeerConnection(servers);
+        
+        // Добавляем звук
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        // Выбираем кому звонить (первому в списке)
+        const targetUser = users[0];
+        
+        // Создаем предложение
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        // Отправляем звонок
+        socket.emit('call-user', {
+            to: targetUser,
+            offer: offer,
+            from: currentUser
+        });
+
+        // Показываем панель звонка
+        showCallPanel('Звонок ' + targetUser, '⏳ Вызываем...');
+        currentCall = {
+            type: 'outgoing',
+            to: targetUser
+        };
+        
+        // Таймаут на случай если не ответят
+        setTimeout(() => {
+            if (currentCall?.type === 'outgoing') {
+                endCall();
+                showNotification('Абонент не ответил', 'info');
+            }
+        }, 30000); // 30 секунд
+        
+    } catch (err) {
+        console.error('Ошибка звонка:', err);
+        showNotification('Ошибка при звонке: ' + err.message, 'error');
+    }
+}
         socket.on('incoming-call', async (data) => {
             showCallPanel(`Входящий звонок от ${data.from}`, '🔔');
             currentCall = {
@@ -794,6 +832,60 @@
                 offer: data.offer
             };
         });
+        // Обработка входящего звонка
+socket.on('incoming-call', async (data) => {
+    console.log('📞 Входящий звонок от:', data.from);
+    
+    // Проверяем, не заняты ли мы
+    if (currentCall) {
+        socket.emit('call-busy', { to: data.from });
+        return;
+    }
+    
+    // Показываем уведомление
+    showNotification(`📞 Входящий звонок от ${data.from}`, 'info');
+    
+    // Показываем панель звонка
+    document.getElementById('call-name').textContent = `📞 ${data.from}`;
+    document.getElementById('call-status').textContent = '🔔 Входящий звонок...';
+    document.getElementById('call-panel').style.display = 'block';
+    
+    currentCall = {
+        type: 'incoming',
+        from: data.from,
+        offer: data.offer
+    };
+});
+
+// Звонок принят
+socket.on('call-accepted', async (data) => {
+    console.log('✅ Звонок принят!');
+    await peerConnection.setRemoteDescription(data.answer);
+    document.getElementById('call-status').textContent = '✅ Разговор...';
+    showNotification('Разговор начат!', 'success');
+    setupCallEvents();
+});
+
+// Звонок отклонен
+socket.on('call-rejected', () => {
+    console.log('❌ Звонок отклонен');
+    endCall();
+    showNotification('Звонок отклонен', 'info');
+});
+
+// Абонент занят
+socket.on('call-busy', () => {
+    console.log('⏳ Абонент занят');
+    endCall();
+    showNotification('Абонент занят', 'info');
+});
+
+// ICE кандидаты
+socket.on('ice-candidate', (data) => {
+    if (peerConnection) {
+        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
+});
 
         async function acceptCall() {
             try {
@@ -910,3 +1002,4 @@
     </script>
 </body>
 </html>
+
