@@ -1,131 +1,113 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Online Chat</title>
+    <title>Мой Чат со звонками</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: sans-serif;
+        body { margin: 0; background: #1a1a2e; font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #chat { width: 800px; height: 600px; background: white; border-radius: 10px; display: flex; flex-direction: column; position: relative; }
+        #messages { flex: 1; padding: 20px; overflow-y: auto; }
+        #input-area { padding: 20px; display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; }
+        button { padding: 10px 20px; background: #4a9c4a; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #login { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a2e; display: flex; justify-content: center; align-items: center; }
+        .login-box { background: white; padding: 40px; border-radius: 10px; }
+        
+        /* Кнопка звонка */
+        #callBtn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #4a9c4a;
+            color: white;
+            font-size: 24px;
+            border: none;
+            cursor: pointer;
+            display: none;
+            box-shadow: 0 5px 15px rgba(74,156,74,0.4);
         }
-        #chat {
-            width: 800px;
-            height: 600px;
-            background: white;
-            border-radius: 20px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        #messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: #f5f5f5;
-        }
-        .message {
-            margin: 10px 0;
-            padding: 10px;
+        
+        /* Панель звонка */
+        #callPanel {
+            position: fixed;
+            bottom: 150px;
+            right: 20px;
+            width: 300px;
             background: white;
             border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .message .name {
-            color: #667eea;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .message .time {
-            font-size: 11px;
-            color: #999;
-            float: right;
-        }
-        #input-area {
             padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            display: none;
+        }
+        
+        #callPanel h3 { margin: 0 0 10px 0; color: #333; }
+        #callStatus { margin-bottom: 15px; color: #666; }
+        #callButtons { display: flex; gap: 10px; }
+        #acceptCall { flex: 1; padding: 10px; background: #4a9c4a; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #rejectCall { flex: 1; padding: 10px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        
+        /* Список пользователей */
+        #usersPanel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 200px;
             background: white;
-            border-top: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        #usersPanel h3 { margin: 0 0 10px 0; color: #333; }
+        .user-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f0f0f0;
+            border-radius: 5px;
+            cursor: pointer;
             display: flex;
+            align-items: center;
             gap: 10px;
         }
-        #message-input {
-            flex: 1;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            outline: none;
-        }
-        #message-input:focus {
-            border-color: #667eea;
-        }
-        #send-btn {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-        #users {
-            padding: 10px 20px;
-            background: #f0f0f0;
-            border-bottom: 1px solid #ddd;
-        }
-        #login {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .login-box {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            width: 300px;
-            text-align: center;
-        }
-        .login-box input {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-        }
-        .login-box button {
-            width: 100%;
-            padding: 10px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
+        .user-item:hover { background: #e0e0e0; }
+        .online-dot { width: 10px; height: 10px; background: #4a9c4a; border-radius: 50%; }
     </style>
 </head>
 <body>
     <div id="login">
         <div class="login-box">
             <h2>Вход в чат</h2>
-            <input type="text" id="username" placeholder="Твой ник">
-            <input type="text" id="room" placeholder="Комната (например: games)">
+            <input type="text" id="username" placeholder="Твой ник"><br><br>
             <button onclick="joinChat()">Войти</button>
         </div>
     </div>
 
     <div id="chat" style="display: none;">
-        <div id="users">👥 Загрузка...</div>
         <div id="messages"></div>
         <div id="input-area">
-            <input type="text" id="message-input" placeholder="Напиши сообщение...">
-            <button id="send-btn" onclick="sendMessage()">➤</button>
+            <input type="text" id="message" placeholder="Сообщение...">
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <!-- Панель с пользователями -->
+    <div id="usersPanel" style="display: none;">
+        <h3>📞 Онлайн</h3>
+        <div id="usersList"></div>
+    </div>
+
+    <!-- Кнопка звонка -->
+    <button id="callBtn" onclick="startCall()">📞</button>
+
+    <!-- Панель звонка -->
+    <div id="callPanel">
+        <h3 id="callTitle">📞 Входящий звонок</h3>
+        <div id="callStatus">⏳ Соединение...</div>
+        <div id="callButtons">
+            <button id="acceptCall" onclick="acceptCall()">✅ Принять</button>
+            <button id="rejectCall" onclick="rejectCall()">❌ Отклонить</button>
         </div>
     </div>
 
@@ -133,55 +115,216 @@
     <script>
         const socket = io();
         let username = '';
-        let room = 'general';
+        let users = [];
+        let currentCall = null;
+        let localStream = null;
+        let peerConnection = null;
+        let selectedUser = null;
 
         function joinChat() {
-            username = document.getElementById('username').value || 'Аноним';
-            room = document.getElementById('room').value || 'general';
-            
-            socket.emit('join', { username, room });
-            
+            username = document.getElementById('username').value || 'Гость';
+            socket.emit('join', username);
             document.getElementById('login').style.display = 'none';
             document.getElementById('chat').style.display = 'flex';
+            document.getElementById('usersPanel').style.display = 'block';
         }
 
-        socket.on('message', (data) => {
-            addMessage(data);
+        // Получаем список пользователей
+        socket.on('users', (onlineUsers) => {
+            users = onlineUsers.filter(u => u !== username);
+            const list = document.getElementById('usersList');
+            list.innerHTML = users.map(u => `
+                <div class="user-item" onclick="selectUser('${u}')">
+                    <span class="online-dot"></span>
+                    ${u}
+                </div>
+            `).join('');
         });
 
-        socket.on('userList', (users) => {
-            document.getElementById('users').innerHTML = '👥 Онлайн: ' + users.join(', ');
+        function selectUser(user) {
+            selectedUser = user;
+            document.getElementById('callBtn').style.display = 'block';
+        }
+
+        // Сообщения
+        socket.on('message', (data) => {
+            const div = document.createElement('div');
+            div.innerHTML = `<b>${data.username}:</b> ${data.text}`;
+            document.getElementById('messages').appendChild(div);
         });
 
         function sendMessage() {
-            const input = document.getElementById('message-input');
-            const text = input.value.trim();
-            
-            if (text) {
-                socket.emit('message', text);
-                input.value = '';
+            const input = document.getElementById('message');
+            socket.emit('message', input.value);
+            input.value = '';
+        }
+
+        // ========== ЗВОНКИ ==========
+        let servers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        // Начать звонок
+        async function startCall() {
+            if (!selectedUser) {
+                alert('Выбери кому звонить!');
+                return;
+            }
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                peerConnection = new RTCPeerConnection(servers);
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Создаем предложение
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                socket.emit('call-user', {
+                    to: selectedUser,
+                    offer: offer
+                });
+
+                document.getElementById('callPanel').style.display = 'block';
+                document.getElementById('callTitle').innerText = '📞 Звонок ' + selectedUser;
+                document.getElementById('callStatus').innerText = '⏳ Звоним...';
+                
+                currentCall = 'outgoing';
+            } catch (err) {
+                alert('Нет доступа к микрофону!');
             }
         }
 
-        function addMessage(data) {
-            const messages = document.getElementById('messages');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'message';
+        // Получаем звонок
+        socket.on('incoming-call', async (data) => {
+            if (currentCall) {
+                socket.emit('call-busy', { to: data.from });
+                return;
+            }
+
+            selectedUser = data.from;
+            document.getElementById('callPanel').style.display = 'block';
+            document.getElementById('callTitle').innerText = '📞 Звонок от ' + data.from;
+            document.getElementById('callStatus').innerText = '🔔 Входящий звонок...';
             
-            const time = new Date().toLocaleTimeString();
-            
-            msgDiv.innerHTML = `
-                <div class="name">${data.username}</div>
-                <div class="time">${time}</div>
-                <div>${data.text}</div>
-            `;
-            
-            messages.appendChild(msgDiv);
-            messages.scrollTop = messages.scrollHeight;
+            currentCall = {
+                from: data.from,
+                offer: data.offer
+            };
+        });
+
+        // Принять звонок
+        async function acceptCall() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                peerConnection = new RTCPeerConnection(servers);
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                await peerConnection.setRemoteDescription(currentCall.offer);
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                socket.emit('accept-call', {
+                    to: currentCall.from,
+                    answer: answer
+                });
+
+                document.getElementById('callStatus').innerText = '✅ Разговор...';
+                
+                setupCallEvents();
+            } catch (err) {
+                alert('Ошибка при ответе');
+            }
+        });
+
+        // Ответ принят
+        socket.on('call-accepted', async (data) => {
+            await peerConnection.setRemoteDescription(data.answer);
+            document.getElementById('callStatus').innerText = '✅ Разговор...';
+            setupCallEvents();
+        });
+
+        // Отклонить звонок
+        function rejectCall() {
+            if (currentCall) {
+                socket.emit('reject-call', { to: selectedUser });
+            }
+            endCall();
         }
 
-        document.getElementById('message-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
+        socket.on('call-rejected', () => {
+            alert('Пользователь отклонил звонок');
+            endCall();
+        });
+
+        socket.on('call-busy', () => {
+            alert('Пользователь занят');
+            endCall();
+        });
+
+        // Завершить звонок
+        function endCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            
+            document.getElementById('callPanel').style.display = 'none';
+            document.getElementById('callBtn').style.display = 'none';
+            currentCall = null;
+            localStream = null;
+            peerConnection = null;
+        }
+
+        function setupCallEvents() {
+            peerConnection.ontrack = (event) => {
+                // Здесь можно добавить индикатор разговора
+                console.log('Говорим...');
+            };
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', {
+                        to: selectedUser,
+                        candidate: event.candidate
+                    });
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                if (peerConnection.connectionState === 'disconnected') {
+                    endCall();
+                }
+            };
+        }
+
+        // ICE кандидаты
+        socket.on('ice-candidate', (data) => {
+            if (peerConnection) {
+                peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        // Пользователь вышел
+        socket.on('user-left', (user) => {
+            if (selectedUser === user) {
+                document.getElementById('callBtn').style.display = 'none';
+            }
+            if (currentCall?.from === user) {
+                endCall();
+            }
         });
     </script>
 </body>
