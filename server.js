@@ -12,57 +12,52 @@ const io = socketIO(server, {
     }
 });
 
-// Отдаем статические файлы
 app.use(express.static(path.join(__dirname, '/')));
 
-// Хранилище пользователей
 let users = {};
 
 io.on('connection', (socket) => {
-    console.log('Новый пользователь:', socket.id);
+    console.log('Новый пользователь подключился:', socket.id);
 
-    // Вход в чат
     socket.on('join', (username) => {
+        console.log('Пользователь хочет войти:', username);
+        
+        if (!username) {
+            socket.emit('join_error', 'Имя не может быть пустым');
+            return;
+        }
+        
         socket.username = username;
         users[socket.id] = username;
         
-        // Отправляем сообщение о входе
+        socket.emit('join_success');
+        
         io.emit('message', {
-            username: '🤖 Система',
+            username: 'Система',
             text: `${username} присоединился к чату`
         });
         
-        // Отправляем список пользователей
-        io.emit('users', Object.values(users));
+        console.log('Текущие пользователи:', Object.values(users));
     });
 
-    // Обработка сообщений
     socket.on('message', (text) => {
-        io.emit('message', {
-            username: socket.username,
-            text: text
-        });
+        if (socket.username) {
+            io.emit('message', {
+                username: socket.username,
+                text: text
+            });
+        }
     });
 
-    // Отключение
     socket.on('disconnect', () => {
         if (socket.username) {
-            // Удаляем пользователя
+            console.log('Пользователь отключился:', socket.username);
             delete users[socket.id];
-            
-            // Сообщаем всем
-            io.emit('message', {
-                username: '🤖 Система',
-                text: `${socket.username} покинул чат`
-            });
-            
-            // Обновляем список
-            io.emit('users', Object.values(users));
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Сервер запущен на порту ${PORT}`);
 });
