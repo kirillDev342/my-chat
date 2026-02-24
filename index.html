@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NEYROCHAT - Общайся с друзьями</title>
+    <title>NEYROCHAT - Полная версия</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
@@ -11,7 +11,6 @@
     <meta name="apple-mobile-web-app-title" content="NEYROCHAT">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/134/134914.png">
     <style>
-        /* ========== СТИЛИ (ПОЛНАЯ ВЕРСИЯ) ========== */
         * {
             margin: 0;
             padding: 0;
@@ -37,7 +36,7 @@
             position: relative;
         }
 
-        /* Левая панель - чаты */
+        /* Левая панель - чаты (400 строк CSS) */
         #chats-panel {
             width: 350px;
             background: #0f0f1f;
@@ -597,6 +596,24 @@
             cursor: pointer;
         }
 
+        #search-results {
+            margin-top: 20px;
+        }
+
+        .found-user {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #1a1a2e;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+
+        .found-user:hover {
+            background: #2a2a3a;
+        }
+
         /* Панель настроек */
         #settings-panel {
             position: absolute;
@@ -981,7 +998,7 @@
         <div id="add-friend-content">
             <input type="text" id="friend-username" placeholder="Введите логин друга">
             <button id="add-friend-btn" onclick="findUser()">Найти</button>
-            <div id="search-results" style="margin-top: 20px;"></div>
+            <div id="search-results"></div>
         </div>
     </div>
 
@@ -992,9 +1009,6 @@
             <h3 style="color: white;">Настройки</h3>
         </div>
         <div id="settings-content">
-            <div class="settings-item" onclick="toggleTheme()">
-                <span>🌓</span> Сменить тему
-            </div>
             <div class="settings-item" onclick="toggleNotifications()">
                 <span>🔔</span> Уведомления: <span id="notif-status">Вкл</span>
             </div>
@@ -1036,7 +1050,6 @@
         let replyTo = null;
         let notifications = true;
         let sound = true;
-        let currentTheme = 'dark';
         
         // Хранилище сообщений по чатам
         let chatMessages = {};
@@ -1164,23 +1177,30 @@
 
         // ========== ПОЛЬЗОВАТЕЛИ ==========
         socket.on('users-list', (usersList) => {
+            console.log('👥 Получен список пользователей:', usersList);
             users = usersList;
             renderUsers();
         });
 
         socket.on('user-online', (userId) => {
+            console.log('🟢 Пользователь онлайн:', userId);
             const user = users.find(u => u.id == userId);
-            if (user) user.online = true;
-            renderUsers();
+            if (user) {
+                user.online = true;
+                renderUsers();
+            }
             if (currentChat == userId) {
                 document.getElementById('chat-status').textContent = '🟢 Онлайн';
             }
         });
 
         socket.on('user-offline', (userId) => {
+            console.log('🔴 Пользователь офлайн:', userId);
             const user = users.find(u => u.id == userId);
-            if (user) user.online = false;
-            renderUsers();
+            if (user) {
+                user.online = false;
+                renderUsers();
+            }
             if (currentChat == userId) {
                 document.getElementById('chat-status').textContent = '⚪ Офлайн';
             }
@@ -1193,6 +1213,11 @@
             let filteredUsers = users;
             if (searchQuery) {
                 filteredUsers = users.filter(u => u.username.toLowerCase().includes(searchQuery));
+            }
+            
+            if (!filteredUsers || filteredUsers.length === 0) {
+                list.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">👥 Нет других пользователей онлайн</div>';
+                return;
             }
             
             list.innerHTML = filteredUsers.map(user => {
@@ -1209,6 +1234,7 @@
                         <div class="chat-info">
                             <div class="chat-name">
                                 ${user.username}
+                                ${user.online ? '<span style="color: #4a9c4a; font-size: 10px;"> ●</span>' : ''}
                             </div>
                             <div class="chat-last-message">
                                 ${lastMsg ? (lastMsg.from == currentUser?.id ? 'Вы: ' : '') + (lastMsg.text || '📸 Фото') : 'Нет сообщений'}
@@ -1239,7 +1265,7 @@
                 });
             }
             
-            renderMessages();
+            socket.emit('get-messages', userId);
         }
 
         function backToChats() {
@@ -1248,6 +1274,7 @@
 
         // ========== СООБЩЕНИЯ ==========
         socket.on('messages-list', (msgs) => {
+            console.log('📨 Получена история:', msgs.length);
             msgs.forEach(msg => {
                 const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
                 if (!chatMessages[chatId]) chatMessages[chatId] = [];
@@ -1261,6 +1288,7 @@
         });
 
         socket.on('new-message', (msg) => {
+            console.log('📩 Новое сообщение:', msg);
             const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
             
             if (!chatMessages[chatId]) chatMessages[chatId] = [];
@@ -1289,19 +1317,17 @@
                 
                 let content = '';
                 if (msg.text) {
-                    content = `<div class="message-text">${msg.text}</div>`;
+                    content = `<div class="message-text">${escapeHtml(msg.text)}</div>`;
                 }
                 if (msg.photo) {
                     content = `<img src="${msg.photo}" class="message-image" onclick="viewPhoto('${msg.photo}')">`;
                 }
                 
                 let reactions = '';
-                if (msg.reactions && msg.reactions.length > 0) {
-                    const counts = {};
-                    msg.reactions.forEach(r => counts[r] = (counts[r] || 0) + 1);
-                    reactions = Object.entries(counts).map(([emoji, count]) => `
+                if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+                    reactions = Object.entries(msg.reactions).map(([emoji, users]) => `
                         <span class="reaction" onclick="addReaction('${msg.id}', '${emoji}')">
-                            ${emoji} ${count}
+                            ${emoji} ${users.length}
                         </span>
                     `).join('');
                 }
@@ -1311,14 +1337,14 @@
                     reply = `
                         <div class="reply-info">
                             <div class="reply-author">${msg.replyAuthor}</div>
-                            <div class="reply-text">${msg.replyText}</div>
+                            <div class="reply-text">${escapeHtml(msg.replyText)}</div>
                         </div>
                     `;
                 }
                 
                 return `
                     <div class="message ${isOwn ? 'own' : ''}" id="msg-${msg.id}" 
-                         ondblclick="setReply('${msg.id}', '${isOwn ? 'Вы' : msg.fromUsername}', '${msg.text || 'Фото'}')">
+                         ondblclick="setReply('${msg.id}', '${isOwn ? 'Вы' : escapeHtml(msg.fromUsername)}', '${escapeHtml(msg.text || 'Фото')}')">
                         <div class="message-avatar" style="background: ${isOwn ? (currentUser?.avatarColor || '#4a9c4a') : '#4a9c4a'}">👤</div>
                         <div class="message-content">
                             ${reply}
@@ -1508,11 +1534,9 @@
         socket.on('user-found', (user) => {
             const results = document.getElementById('search-results');
             results.innerHTML = `
-                <div class="chat-item" onclick="addFriend('${user.id}')">
-                    <div class="chat-avatar" style="background: ${user.avatarColor || '#4a9c4a'}">👤</div>
-                    <div class="chat-info">
-                        <div class="chat-name">${user.username}</div>
-                    </div>
+                <div class="found-user" onclick="addFriend('${user.id}')">
+                    <div class="chat-avatar" style="background: ${user.avatarColor || '#4a9c4a'}; width: 40px; height: 40px;">👤</div>
+                    <div style="margin-left: 10px; color: white;">${user.username}</div>
                 </div>
             `;
         });
@@ -1534,10 +1558,6 @@
 
         function closeSettings() {
             document.getElementById('settings-panel').style.display = 'none';
-        }
-
-        function toggleTheme() {
-            showNotification('🌓 Тема будет добавлена позже');
         }
 
         function toggleNotifications() {
@@ -1638,6 +1658,14 @@
         socket.on('disconnect', () => {
             showNotification('❌ Потеряно соединение с сервером');
         });
+
+        // Экранирование HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
         // ========== PWA ==========
         if ('serviceWorker' in navigator) {
