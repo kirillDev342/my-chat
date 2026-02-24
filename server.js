@@ -1,84 +1,28 @@
-const express = require('express');
-const http = require('http');
-const socketIO = require('socket.io');
-const path = require('path');
-const Database = require('better-sqlite3');
-
-const app = express();
-const server = http.createServer(app);
-const io = socketIO(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
-
-app.use(express.static(path.join(__dirname, '/')));
-
-// ========== SQLite БАЗА ДАННЫХ ==========
-const db = new Database('chat.db');
-
-// Создаем таблицы
-db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        avatarColor TEXT
-    )
-`);
-
-db.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fromUser INTEGER,
-        toUser INTEGER,
-        text TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-`);
-
-console.log('✅ База данных готова!');
-
-// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БД ==========
-function createUser(username, password) {
-    const colors = ['#4a9c4a', '#4a7c9c', '#9c4a4a', '#9c7c4a', '#7c4a9c'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    
-    const stmt = db.prepare('INSERT INTO users (username, password, avatarColor) VALUES (?, ?, ?)');
-    return stmt.run(username, password, randomColor);
-}
-
-function checkPassword(username, password) {
-    const stmt = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?');
-    return stmt.get(username, password);
-}
-
-function getAllUsers(excludeUserId) {
-    const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id != ?');
-    return stmt.all(excludeUserId);
-}
-
-function saveMessage(fromUser, toUser, text) {
-    const stmt = db.prepare('INSERT INTO messages (fromUser, toUser, text) VALUES (?, ?, ?)');
-    return stmt.run(fromUser, toUser, text);
-}
-
-function getMessages(user1, user2) {
-    const stmt = db.prepare(`
-        SELECT * FROM messages 
-        WHERE (fromUser = ? AND toUser = ?) OR (fromUser = ? AND toUser = ?)
-        ORDER BY timestamp ASC
-    `);
-    return stmt.all(user1, user2, user2, user1);
-}
-
-// ========== ХРАНИЛИЩЕ ОНЛАЙН ПОЛЬЗОВАТЕЛЕЙ ==========
-let onlineUsers = {};
-
-// ========== СОКЕТ СОЕДИНЕНИЯ ==========
 io.on('connection', (socket) => {
     console.log('🟢 Новый пользователь:', socket.id);
+
+    // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
+    socket.on('auto-login', (userId) => {
+        try {
+            const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id = ?');
+            const user = stmt.get(userId);
+            
+            if (user) {
+                socket.userId = user.id;
+                socket.username = user.username;
+                
+                onlineUsers[user.id] = socket.id;
+                
+                socket.emit('auto-login-success', {
+                    id: user.id,
+                    username: user.username,
+                    avatarColor: user.avatarColor
+                });
+            }
+        } catch (err) {
+            console.log('Ошибка автовхода:', err);
+        }
+    });
 
     // ========== РЕГИСТРАЦИЯ ==========
     socket.on('register', (data) => {
@@ -92,9 +36,7 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            // Создаем нового пользователя
             createUser(username, password);
-            
             socket.emit('register_success');
             console.log(`✅ Зарегистрирован: ${username}`);
             
@@ -108,7 +50,6 @@ io.on('connection', (socket) => {
         try {
             const { username, password } = data;
             
-            // Проверяем пароль
             const user = checkPassword(username, password);
             
             if (!user) {
@@ -180,6 +121,11 @@ io.on('connection', (socket) => {
         }
     });
 
+    // ========== ПИНГ ДЛЯ БОРЬБЫ СО СНОМ ==========
+    socket.on('ping', () => {
+        socket.emit('pong');
+    });
+
     // ========== ОТКЛЮЧЕНИЕ ==========
     socket.on('disconnect', () => {
         if (socket.userId) {
@@ -189,54 +135,12 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Сервер запущен на порту ${PORT}`);
-});
-// ========== ПИНГ ДЛЯ БОРЬБЫ СО СНОМ ==========
+// ========== ПИНГ HTTP ДЛЯ БОРЬБЫ СО СНОМ ==========
 app.get('/ping', (req, res) => {
     res.send('pong');
 });
 
-// ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
-socket.on('auto-login', (userId) => {
-    try {
-        const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id = ?');
-        const user = stmt.get(userId);
-        
-        if (user) {
-            socket.userId = user.id;
-            socket.username = user.username;
-            
-            onlineUsers[user.id] = socket.id;
-            
-            socket.emit('auto-login-success', {
-                id: user.id,
-                username: user.username,
-                avatarColor: user.avatarColor
-            });
-        }
-    } catch (err) {
-        console.log('Ошибка автовхода:', err);
-    }
-});
-
-// ========== ПЕЧАТАЕТ... ==========
-socket.on('typing', (data) => {
-    const targetSocket = onlineUsers[data.to];
-    if (targetSocket) {
-        io.to(targetSocket).emit('typing', {
-            username: socket.username,
-            typing: data.typing
-        });
-    }
-});
-
-// ========== РЕАКЦИИ ==========
-socket.on('add-reaction', (data) => {
-    // Здесь можно добавить сохранение реакций
-    io.emit('message-updated', {
-        id: data.messageId,
-        reactions: { [data.emoji]: 1 }
-    });
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Сервер запущен на порту ${PORT}`);
 });
