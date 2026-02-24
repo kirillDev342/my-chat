@@ -1,7 +1,7 @@
 {
   "name": "neyrochat",
   "version": "1.0.0",
-  "description": "Мессенджер с регистрацией",
+  "description": "Мессенджер с базой данных",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
