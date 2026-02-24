@@ -36,7 +36,7 @@
             position: relative;
         }
 
-        /* Левая панель - чаты (400 строк CSS) */
+        /* Левая панель - чаты */
         #chats-panel {
             width: 350px;
             background: #0f0f1f;
@@ -1045,14 +1045,11 @@
         let currentUser = null;
         let currentChat = null;
         let users = [];
-        let messages = [];
+        let chatMessages = {}; // { chatId: [messages] }
         let typingTimer = null;
         let replyTo = null;
         let notifications = true;
         let sound = true;
-        
-        // Хранилище сообщений по чатам
-        let chatMessages = {};
         
         // Эмодзи
         const emojis = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', '👎', '🔥', '✨', '❤️', 
@@ -1272,9 +1269,14 @@
             document.getElementById('chats-panel').classList.remove('hide');
         }
 
-        // ========== СООБЩЕНИЯ ==========
+        // ========== СООБЩЕНИЯ (ИСПРАВЛЕНО) ==========
         socket.on('messages-list', (msgs) => {
-            console.log('📨 Получена история:', msgs.length);
+            console.log('📨 Получена история:', msgs);
+            // Очищаем старые сообщения для этого чата
+            if (currentChat) {
+                chatMessages[currentChat] = [];
+            }
+            
             msgs.forEach(msg => {
                 const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
                 if (!chatMessages[chatId]) chatMessages[chatId] = [];
@@ -1311,6 +1313,11 @@
             
             const area = document.getElementById('messages-area');
             const chatHistory = chatMessages[currentChat] || [];
+            
+            if (chatHistory.length === 0) {
+                area.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">💬 Нет сообщений. Напишите что-нибудь!</div>';
+                return;
+            }
             
             area.innerHTML = chatHistory.map(msg => {
                 const isOwn = msg.from == currentUser?.id;
@@ -1376,6 +1383,7 @@
             const text = input.value.trim();
             
             if (text) {
+                console.log('📤 Отправка сообщения:', text);
                 socket.emit('send-message', {
                     to: currentChat,
                     text: text,
