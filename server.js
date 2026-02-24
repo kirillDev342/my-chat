@@ -2,10 +2,11 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const path = require('path');
+const Database = require('better-sqlite3');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server, {
+const io = socketIO(server, {  // ← io создается ЗДЕСЬ
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
@@ -14,75 +15,203 @@ const io = socketIO(server, {
 
 app.use(express.static(path.join(__dirname, '/')));
 
-// Простое хранилище в памяти
-let users = {};
-let messages = [];
+// ========== SQLite БАЗА ДАННЫХ ==========
+const db = new Database('chat.db');
 
+// Создаем таблицы
+db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        avatarColor TEXT
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fromUser INTEGER,
+        toUser INTEGER,
+        text TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+console.log('✅ База данных готова!');
+
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БД ==========
+function createUser(username, password) {
+    const colors = ['#4a9c4a', '#4a7c9c', '#9c4a4a', '#9c7c4a', '#7c4a9c'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    const stmt = db.prepare('INSERT INTO users (username, password, avatarColor) VALUES (?, ?, ?)');
+    return stmt.run(username, password, randomColor);
+}
+
+function checkPassword(username, password) {
+    const stmt = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?');
+    return stmt.get(username, password);
+}
+
+function getAllUsers(excludeUserId) {
+    const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id != ?');
+    return stmt.all(excludeUserId);
+}
+
+function saveMessage(fromUser, toUser, text) {
+    const stmt = db.prepare('INSERT INTO messages (fromUser, toUser, text) VALUES (?, ?, ?)');
+    return stmt.run(fromUser, toUser, text);
+}
+
+function getMessages(user1, user2) {
+    const stmt = db.prepare(`
+        SELECT * FROM messages 
+        WHERE (fromUser = ? AND toUser = ?) OR (fromUser = ? AND toUser = ?)
+        ORDER BY timestamp ASC
+    `);
+    return stmt.all(user1, user2, user2, user1);
+}
+
+// ========== ХРАНИЛИЩЕ ОНЛАЙН ПОЛЬЗОВАТЕЛЕЙ ==========
+let onlineUsers = {};
+
+// ========== СОКЕТ СОЕДИНЕНИЯ ==========
 io.on('connection', (socket) => {
     console.log('🟢 Новый пользователь:', socket.id);
 
-    // Регистрация
+    // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
+    socket.on('auto-login', (userId) => {
+        try {
+            const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id = ?');
+            const user = stmt.get(userId);
+            
+            if (user) {
+                socket.userId = user.id;
+                socket.username = user.username;
+                
+                onlineUsers[user.id] = socket.id;
+                
+                socket.emit('auto-login-success', {
+                    id: user.id,
+                    username: user.username,
+                    avatarColor: user.avatarColor
+                });
+            }
+        } catch (err) {
+            console.log('Ошибка автовхода:', err);
+        }
+    });
+
+    // ========== РЕГИСТРАЦИЯ ==========
     socket.on('register', (data) => {
-        console.log('Регистрация:', data);
-        socket.emit('register_success');
+        try {
+            const { username, password } = data;
+            
+            const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+            if (existing) {
+                socket.emit('register_error', 'Пользователь уже существует');
+                return;
+            }
+            
+            createUser(username, password);
+            socket.emit('register_success');
+            console.log(`✅ Зарегистрирован: ${username}`);
+            
+        } catch (err) {
+            socket.emit('register_error', 'Ошибка регистрации');
+        }
     });
 
-    // Вход
+    // ========== ВХОД ==========
     socket.on('login', (data) => {
-        console.log('Вход:', data);
-        socket.username = data.username;
-        users[socket.id] = data.username;
-        
-        socket.emit('login_success', {
-            id: socket.id,
-            username: data.username,
-            avatarColor: '#4a9c4a'
-        });
-        
-        // Отправляем список пользователей
-        io.emit('users-list', Object.values(users).map(u => ({
-            id: u,
-            username: u,
-            avatarColor: '#4a9c4a'
-        })));
+        try {
+            const { username, password } = data;
+            
+            const user = checkPassword(username, password);
+            
+            if (!user) {
+                socket.emit('login_error', 'Неверный логин или пароль');
+                return;
+            }
+            
+            socket.userId = user.id;
+            socket.username = user.username;
+            
+            onlineUsers[user.id] = socket.id;
+            
+            socket.emit('login_success', {
+                id: user.id,
+                username: user.username,
+                avatarColor: user.avatarColor
+            });
+            
+            console.log(`✅ Вошел: ${username}`);
+            
+        } catch (err) {
+            socket.emit('login_error', 'Ошибка входа');
+        }
     });
 
-    // Получить пользователей
+    // ========== ПОЛУЧИТЬ ПОЛЬЗОВАТЕЛЕЙ ==========
     socket.on('get-users', () => {
-        const usersList = Object.values(users).map(u => ({
-            id: u,
-            username: u,
-            avatarColor: '#4a9c4a'
-        }));
-        socket.emit('users-list', usersList);
+        try {
+            const users = getAllUsers(socket.userId);
+            socket.emit('users-list', users);
+        } catch (err) {
+            console.log('Ошибка получения пользователей:', err);
+        }
     });
 
-    // Отправка сообщения
+    // ========== ОТПРАВКА СООБЩЕНИЯ ==========
     socket.on('send-message', (data) => {
-        console.log('Сообщение:', data);
-        
-        const message = {
-            id: Date.now(),
-            from: socket.id,
-            fromUsername: socket.username,
-            to: data.to,
-            text: data.text,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Отправляем всем
-        io.emit('new-message', message);
+        try {
+            const { to, text } = data;
+            
+            saveMessage(socket.userId, to, text);
+            
+            const message = {
+                id: Date.now(),
+                from: socket.userId,
+                fromUsername: socket.username,
+                to: to,
+                text: text,
+                timestamp: new Date().toISOString()
+            };
+            
+            if (onlineUsers[to]) {
+                io.to(onlineUsers[to]).emit('new-message', message);
+            }
+            
+            socket.emit('new-message', message);
+            
+        } catch (err) {
+            console.log('Ошибка отправки:', err);
+        }
     });
 
-    // Получить историю
+    // ========== ПОЛУЧИТЬ ИСТОРИЮ ==========
     socket.on('get-messages', (friendId) => {
-        socket.emit('messages-list', []);
+        try {
+            const messages = getMessages(socket.userId, friendId);
+            socket.emit('messages-list', messages);
+        } catch (err) {
+            console.log('Ошибка получения истории:', err);
+        }
     });
 
+    // ========== ОТКЛЮЧЕНИЕ ==========
     socket.on('disconnect', () => {
-        delete users[socket.id];
-        console.log('🔴 Отключился:', socket.id);
+        if (socket.userId) {
+            delete onlineUsers[socket.userId];
+            console.log(`🔴 Отключился: ${socket.username}`);
+        }
     });
+});
+
+// ========== ПИНГ ДЛЯ БОРЬБЫ СО СНОМ ==========
+app.get('/ping', (req, res) => {
+    res.send('pong');
 });
 
 const PORT = process.env.PORT || 3000;
