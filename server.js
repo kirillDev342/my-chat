@@ -37,6 +37,9 @@ db.exec(`
         fromUser INTEGER,
         toUser INTEGER,
         text TEXT,
+        type TEXT DEFAULT 'text',
+        audio TEXT,
+        duration TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 `);
@@ -83,7 +86,6 @@ function updateUserAvatarColor(userId, color) {
 }
 
 function updateUsername(userId, newUsername) {
-    // Проверяем, не занят ли ник
     const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(newUsername);
     if (existing) {
         return false;
@@ -93,9 +95,9 @@ function updateUsername(userId, newUsername) {
     return true;
 }
 
-function saveMessage(fromUser, toUser, text) {
-    const stmt = db.prepare('INSERT INTO messages (fromUser, toUser, text) VALUES (?, ?, ?)');
-    return stmt.run(fromUser, toUser, text);
+function saveMessage(fromUser, toUser, text, type = 'text', audio = null, duration = null) {
+    const stmt = db.prepare('INSERT INTO messages (fromUser, toUser, text, type, audio, duration) VALUES (?, ?, ?, ?, ?, ?)');
+    return stmt.run(fromUser, toUser, text, type, audio, duration);
 }
 
 function getMessages(user1, user2) {
@@ -133,9 +135,7 @@ io.on('connection', (socket) => {
                     avatar: user.avatar
                 });
                 
-                // Уведомляем всех о новом онлайн пользователе
                 io.emit('user-online', user.id);
-                
                 console.log(`✅ Автовход: ${user.username}`);
             }
         } catch (err) {
@@ -190,8 +190,6 @@ io.on('connection', (socket) => {
             });
             
             console.log(`✅ Вошел: ${username}`);
-            
-            // Уведомляем всех о новом онлайн пользователе
             io.emit('user-online', user.id);
             
         } catch (err) {
@@ -226,7 +224,6 @@ io.on('connection', (socket) => {
             if (success) {
                 socket.username = data.username;
                 socket.emit('username-updated', data.username);
-                // Обновляем имя во всех чатах
                 io.emit('user-renamed', {
                     id: socket.userId,
                     username: data.username
@@ -252,12 +249,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    // ========== ОТПРАВКА СООБЩЕНИЯ ==========
+    // ========== ОТПРАВКА ТЕКСТОВОГО СООБЩЕНИЯ ==========
     socket.on('send-message', (data) => {
         try {
             const { to, text } = data;
             
-            const result = saveMessage(socket.userId, to, text);
+            const result = saveMessage(socket.userId, to, text, 'text');
             
             const message = {
                 id: result.lastInsertRowid,
@@ -265,6 +262,7 @@ io.on('connection', (socket) => {
                 fromUsername: socket.username,
                 to: to,
                 text: text,
+                type: 'text',
                 timestamp: new Date().toISOString()
             };
             
@@ -276,6 +274,37 @@ io.on('connection', (socket) => {
             
         } catch (err) {
             console.log('Ошибка отправки:', err);
+        }
+    });
+
+    // ========== ОТПРАВКА ГОЛОСОВОГО СООБЩЕНИЯ ==========
+    socket.on('send-voice', (data) => {
+        try {
+            const { to, audio, duration } = data;
+            
+            const result = saveMessage(socket.userId, to, '🎤 Голосовое сообщение', 'voice', audio, duration);
+            
+            const message = {
+                id: result.lastInsertRowid,
+                from: socket.userId,
+                fromUsername: socket.username,
+                to: to,
+                type: 'voice',
+                audio: audio,
+                duration: duration,
+                timestamp: new Date().toISOString()
+            };
+            
+            if (onlineUsers[to]) {
+                io.to(onlineUsers[to]).emit('new-message', message);
+            }
+            
+            socket.emit('new-message', message);
+            
+            console.log(`🎤 Голосовое от ${socket.username}`);
+            
+        } catch (err) {
+            console.log('Ошибка отправки голосового:', err);
         }
     });
 
@@ -296,8 +325,6 @@ io.on('connection', (socket) => {
             updateUserOnline(socket.userId, false);
             
             console.log(`🔴 Отключился: ${socket.username}`);
-            
-            // Уведомляем всех о выходе
             io.emit('user-offline', socket.userId);
         }
     });
