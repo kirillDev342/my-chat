@@ -11,6 +11,7 @@
     <meta name="apple-mobile-web-app-title" content="NEYROCHAT">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/134/134914.png">
     <style>
+        /* ========== СТИЛИ (ПОЛНАЯ ВЕРСИЯ) ========== */
         * {
             margin: 0;
             padding: 0;
@@ -351,6 +352,14 @@
             font-size: 14px;
             line-height: 1.4;
             word-break: break-word;
+        }
+
+        .message-image {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 5px;
         }
 
         .message-time {
@@ -932,13 +941,13 @@
                 <div id="chat-actions">
                     <button class="action-btn" onclick="toggleEmojiPicker()">😊</button>
                     <button class="action-btn" onclick="toggleAttachMenu()">📎</button>
+                    <button class="action-btn" onclick="startCall()">🎤</button>
                 </div>
             </div>
             
             <div id="attach-menu">
                 <div class="attach-option" onclick="sendPhoto()">📸 Фото</div>
                 <div class="attach-option" onclick="sendFile()">📁 Файл</div>
-                <div class="attach-option" onclick="startCall()">🎤 Голос</div>
             </div>
             
             <div id="messages-area"></div>
@@ -1017,6 +1026,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        // ========== НАСТРОЙКИ ==========
         const socket = io();
         let currentUser = null;
         let currentChat = null;
@@ -1027,6 +1037,9 @@
         let notifications = true;
         let sound = true;
         let currentTheme = 'dark';
+        
+        // Хранилище сообщений по чатам
+        let chatMessages = {};
         
         // Эмодзи
         const emojis = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', '👎', '🔥', '✨', '❤️', 
@@ -1159,12 +1172,18 @@
             const user = users.find(u => u.id == userId);
             if (user) user.online = true;
             renderUsers();
+            if (currentChat == userId) {
+                document.getElementById('chat-status').textContent = '🟢 Онлайн';
+            }
         });
 
         socket.on('user-offline', (userId) => {
             const user = users.find(u => u.id == userId);
             if (user) user.online = false;
             renderUsers();
+            if (currentChat == userId) {
+                document.getElementById('chat-status').textContent = '⚪ Офлайн';
+            }
         });
 
         function renderUsers() {
@@ -1177,10 +1196,9 @@
             }
             
             list.innerHTML = filteredUsers.map(user => {
-                const lastMessage = messages.filter(m => 
-                    (m.from == user.id && m.to == currentUser?.id) || 
-                    (m.to == user.id && m.from == currentUser?.id)
-                ).pop();
+                const userMessages = chatMessages[user.id] || [];
+                const lastMsg = userMessages[userMessages.length - 1];
+                const unread = userMessages.filter(m => m.from == user.id && !m.read).length;
                 
                 return `
                     <div class="chat-item ${currentChat == user.id ? 'active' : ''}" onclick="openChat('${user.id}')">
@@ -1191,13 +1209,12 @@
                         <div class="chat-info">
                             <div class="chat-name">
                                 ${user.username}
-                                <span class="chat-time">${lastMessage ? new Date(lastMessage.timestamp).toLocaleTimeString() : ''}</span>
                             </div>
                             <div class="chat-last-message">
-                                ${lastMessage ? (lastMessage.from == currentUser?.id ? 'Вы: ' : '') + (lastMessage.text || '📸 Фото') : 'Нажмите чтобы начать чат'}
+                                ${lastMsg ? (lastMsg.from == currentUser?.id ? 'Вы: ' : '') + (lastMsg.text || '📸 Фото') : 'Нет сообщений'}
                             </div>
                         </div>
-                        ${user.unread ? `<span class="unread-badge">${user.unread}</span>` : ''}
+                        ${unread ? `<span class="unread-badge">${unread}</span>` : ''}
                     </div>
                 `;
             }).join('');
@@ -1215,7 +1232,14 @@
                 document.getElementById('chats-panel').classList.add('hide');
             }
             
-            socket.emit('get-messages', userId);
+            // Отмечаем сообщения как прочитанные
+            if (chatMessages[userId]) {
+                chatMessages[userId].forEach(m => {
+                    if (m.from == userId) m.read = true;
+                });
+            }
+            
+            renderMessages();
         }
 
         function backToChats() {
@@ -1224,94 +1248,108 @@
 
         // ========== СООБЩЕНИЯ ==========
         socket.on('messages-list', (msgs) => {
-            messages = msgs;
-            renderMessages();
-        });
-
-        socket.on('new-message', (msg) => {
-            messages.push(msg);
+            msgs.forEach(msg => {
+                const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
+                if (!chatMessages[chatId]) chatMessages[chatId] = [];
+                chatMessages[chatId].push(msg);
+            });
             
-            if (msg.from == currentChat || msg.to == currentChat) {
+            if (currentChat) {
                 renderMessages();
             }
-            
-            if (msg.from != currentUser?.id && document.hidden) {
-                showBrowserNotification(`💬 ${msg.fromUsername}`, msg.text || '📸 Фото');
-            }
-            
-            if (sound && msg.from != currentUser?.id) {
-                playNotificationSound();
-            }
-            
             renderUsers();
         });
 
+        socket.on('new-message', (msg) => {
+            const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
+            
+            if (!chatMessages[chatId]) chatMessages[chatId] = [];
+            chatMessages[chatId].push(msg);
+            
+            if (chatId == currentChat) {
+                renderMessages();
+            }
+            
+            renderUsers();
+            
+            if (msg.from != currentUser?.id && chatId != currentChat) {
+                showBrowserNotification(`💬 ${msg.fromUsername}`, msg.text || '📸 Фото');
+                if (sound) playNotificationSound();
+            }
+        });
+
         function renderMessages() {
+            if (!currentChat) return;
+            
             const area = document.getElementById('messages-area');
-            area.innerHTML = messages
-                .filter(msg => (msg.from == currentChat && msg.to == currentUser?.id) || 
-                              (msg.to == currentChat && msg.from == currentUser?.id))
-                .map(msg => {
-                    const isOwn = msg.from == currentUser?.id;
-                    
-                    let content = '';
-                    if (msg.text) {
-                        content = `<div class="message-text">${msg.text}</div>`;
-                    }
-                    if (msg.photo) {
-                        content = `<img src="${msg.photo}" class="message-image" onclick="viewPhoto('${msg.photo}')" style="max-width: 200px; max-height: 200px; border-radius: 10px; cursor: pointer;">`;
-                    }
-                    
-                    let reactions = '';
-                    if (msg.reactions && msg.reactions.length > 0) {
-                        const counts = {};
-                        msg.reactions.forEach(r => counts[r] = (counts[r] || 0) + 1);
-                        reactions = Object.entries(counts).map(([emoji, count]) => `
-                            <span class="reaction" onclick="addReaction('${msg.id}', '${emoji}')">
-                                ${emoji} ${count}
-                            </span>
-                        `).join('');
-                    }
-                    
-                    let reply = '';
-                    if (msg.replyTo) {
-                        reply = `
-                            <div class="reply-info">
-                                <div class="reply-author">${msg.replyAuthor}</div>
-                                <div class="reply-text">${msg.replyText}</div>
-                            </div>
-                        `;
-                    }
-                    
-                    return `
-                        <div class="message ${isOwn ? 'own' : ''}" id="msg-${msg.id}" 
-                             ondblclick="setReply('${msg.id}', '${isOwn ? 'Вы' : msg.fromUsername}', '${msg.text || 'Фото'}')">
-                            <div class="message-avatar" style="background: ${isOwn ? (currentUser?.avatarColor || '#4a9c4a') : '#4a9c4a'}">👤</div>
-                            <div class="message-content">
-                                ${reply}
-                                ${content}
-                                <div class="message-reactions">
-                                    ${reactions}
-                                </div>
-                                <div class="message-time">
-                                    ${new Date(msg.timestamp).toLocaleTimeString()}
-                                    <span class="message-status">
-                                        ${isOwn ? (msg.read ? '✓✓' : '✓') : ''}
-                                    </span>
-                                </div>
-                            </div>
+            const chatHistory = chatMessages[currentChat] || [];
+            
+            area.innerHTML = chatHistory.map(msg => {
+                const isOwn = msg.from == currentUser?.id;
+                
+                let content = '';
+                if (msg.text) {
+                    content = `<div class="message-text">${msg.text}</div>`;
+                }
+                if (msg.photo) {
+                    content = `<img src="${msg.photo}" class="message-image" onclick="viewPhoto('${msg.photo}')">`;
+                }
+                
+                let reactions = '';
+                if (msg.reactions && msg.reactions.length > 0) {
+                    const counts = {};
+                    msg.reactions.forEach(r => counts[r] = (counts[r] || 0) + 1);
+                    reactions = Object.entries(counts).map(([emoji, count]) => `
+                        <span class="reaction" onclick="addReaction('${msg.id}', '${emoji}')">
+                            ${emoji} ${count}
+                        </span>
+                    `).join('');
+                }
+                
+                let reply = '';
+                if (msg.replyTo) {
+                    reply = `
+                        <div class="reply-info">
+                            <div class="reply-author">${msg.replyAuthor}</div>
+                            <div class="reply-text">${msg.replyText}</div>
                         </div>
                     `;
-                }).join('');
+                }
+                
+                return `
+                    <div class="message ${isOwn ? 'own' : ''}" id="msg-${msg.id}" 
+                         ondblclick="setReply('${msg.id}', '${isOwn ? 'Вы' : msg.fromUsername}', '${msg.text || 'Фото'}')">
+                        <div class="message-avatar" style="background: ${isOwn ? (currentUser?.avatarColor || '#4a9c4a') : '#4a9c4a'}">👤</div>
+                        <div class="message-content">
+                            ${reply}
+                            ${content}
+                            <div class="message-reactions">
+                                ${reactions}
+                            </div>
+                            <div class="message-time">
+                                ${new Date(msg.timestamp).toLocaleTimeString()}
+                                <span class="message-status">
+                                    ${isOwn ? (msg.read ? '✓✓' : '✓') : ''}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
             
             area.scrollTop = area.scrollHeight;
         }
 
         function sendMessage() {
+            if (!currentChat) {
+                showNotification('❌ Выберите чат');
+                return;
+            }
+            
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             
-            if (text && currentChat) {
+            if (text) {
                 socket.emit('send-message', {
                     to: currentChat,
                     text: text,
@@ -1339,11 +1377,9 @@
         });
 
         socket.on('typing', (data) => {
-            const indicator = document.getElementById('typing-indicator');
-            if (data.typing) {
-                indicator.textContent = `${data.username} печатает...`;
-            } else {
-                indicator.textContent = '';
+            if (data.from == currentChat) {
+                const indicator = document.getElementById('typing-indicator');
+                indicator.textContent = data.typing ? `${data.username} печатает...` : '';
             }
         });
 
@@ -1370,10 +1406,15 @@
         }
 
         socket.on('message-updated', (message) => {
-            const index = messages.findIndex(m => m.id == message.id);
-            if (index != -1) {
-                messages[index] = message;
-                renderMessages();
+            const chatId = message.from == currentUser?.id ? message.to : message.from;
+            if (chatMessages[chatId]) {
+                const index = chatMessages[chatId].findIndex(m => m.id == message.id);
+                if (index != -1) {
+                    chatMessages[chatId][index] = message;
+                    if (chatId == currentChat) {
+                        renderMessages();
+                    }
+                }
             }
         });
 
@@ -1421,6 +1462,10 @@
             document.getElementById('attach-menu').style.display = 'none';
         }
 
+        function sendFile() {
+            showNotification('📁 Отправка файлов будет позже');
+        }
+
         function viewPhoto(src) {
             document.getElementById('viewer-image').src = src;
             document.getElementById('photo-viewer').style.display = 'flex';
@@ -1428,6 +1473,15 @@
 
         function closePhotoViewer() {
             document.getElementById('photo-viewer').style.display = 'none';
+        }
+
+        // ========== ЗВОНКИ ==========
+        function startCall() {
+            if (!currentChat) {
+                showNotification('❌ Выберите чат');
+                return;
+            }
+            showNotification('🎤 Звонки пока в разработке');
         }
 
         // ========== МЕНЮ ВЛОЖЕНИЙ ==========
@@ -1483,7 +1537,6 @@
         }
 
         function toggleTheme() {
-            // Можно добавить смену темы
             showNotification('🌓 Тема будет добавлена позже');
         }
 
