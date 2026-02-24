@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NEYROCHAT - Стабильная версия</title>
+    <title>NEYROCHAT - Профиль и темы</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#4a9c4a">
+    <meta name="theme-color" id="theme-color" content="#4a9c4a">
     <style>
         * {
             margin: 0;
@@ -15,18 +15,94 @@
         }
 
         body {
-            background: #0a0a1a;
+            background: var(--bg-primary);
             height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            transition: background 0.3s;
+        }
+
+        /* ========== ТЕМЫ ========== */
+        .theme-dark {
+            --bg-primary: #0a0a1a;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #0f0f1f;
+            --text-primary: #ffffff;
+            --text-secondary: #888;
+            --accent: #4a9c4a;
+            --accent-hover: #2ecc71;
+            --border: #2a2a3a;
+            --message-own: #4a9c4a;
+            --message-other: #1a1a2e;
+            --header-bg: #1a1a2e;
+        }
+
+        .theme-light {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e0e0e0;
+            --text-primary: #333333;
+            --text-secondary: #666;
+            --accent: #2196f3;
+            --accent-hover: #1976d2;
+            --border: #ddd;
+            --message-own: #2196f3;
+            --message-other: #ffffff;
+            --header-bg: #ffffff;
+        }
+
+        .theme-neon {
+            --bg-primary: #000000;
+            --bg-secondary: #111111;
+            --bg-tertiary: #222222;
+            --text-primary: #00ff00;
+            --text-secondary: #00aa00;
+            --accent: #ff00ff;
+            --accent-hover: #ff44ff;
+            --border: #00ff00;
+            --message-own: #ff00ff;
+            --message-other: #222222;
+            --header-bg: #111111;
+        }
+
+        .theme-cyber {
+            --bg-primary: #0a0a2a;
+            --bg-secondary: #1a1a3a;
+            --bg-tertiary: #2a2a4a;
+            --text-primary: #ffaa00;
+            --text-secondary: #ff8800;
+            --accent: #ff5500;
+            --accent-hover: #ff7700;
+            --border: #ff5500;
+            --message-own: #ff5500;
+            --message-other: #1a1a3a;
+            --header-bg: #1a1a3a;
+        }
+
+        .theme-forest {
+            --bg-primary: #1a2a1a;
+            --bg-secondary: #2a3a2a;
+            --bg-tertiary: #3a4a3a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #6b8e4c;
+            --accent-hover: #7fa85c;
+            --border: #4a6a3a;
+            --message-own: #6b8e4c;
+            --message-other: #2a3a2a;
+            --header-bg: #2a3a2a;
+        }
+
+        body {
+            background: var(--bg-primary);
         }
 
         #app {
             width: 100%;
             max-width: 1200px;
             height: 100vh;
-            background: #1a1a2e;
+            background: var(--bg-secondary);
             display: flex;
             overflow: hidden;
             position: relative;
@@ -35,43 +111,79 @@
         /* Левая панель */
         #chats-panel {
             width: 350px;
-            background: #0f0f1f;
-            border-right: 1px solid #2a2a3a;
+            background: var(--bg-tertiary);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
         }
 
         #profile-header {
             padding: 20px;
-            background: #1a1a2e;
+            background: var(--header-bg);
             display: flex;
             align-items: center;
             gap: 15px;
-            border-bottom: 1px solid #2a2a3a;
+            border-bottom: 1px solid var(--border);
         }
 
         #profile-avatar {
             width: 50px;
             height: 50px;
-            background: #4a9c4a;
+            background: var(--accent);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 24px;
             color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            overflow: hidden;
+        }
+
+        #profile-avatar:hover {
+            transform: scale(1.1);
+        }
+
+        #profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         #profile-name {
             flex: 1;
-            color: white;
+            color: var(--text-primary);
             font-weight: bold;
             font-size: 18px;
         }
 
         #profile-status {
-            color: #4a9c4a;
+            color: var(--accent);
             font-size: 12px;
+        }
+
+        #header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .header-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.1);
         }
 
         #chats-list {
@@ -85,19 +197,21 @@
             align-items: center;
             padding: 12px;
             margin: 5px 0;
-            background: #1a1a2e;
+            background: var(--bg-secondary);
             border-radius: 15px;
             cursor: pointer;
+            transition: all 0.3s;
         }
 
         .chat-item:hover {
-            background: #2a2a3a;
+            background: var(--bg-tertiary);
+            transform: translateX(5px);
         }
 
         .chat-avatar {
             width: 50px;
             height: 50px;
-            background: #4a9c4a;
+            background: var(--accent);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -106,13 +220,20 @@
             font-size: 20px;
             margin-right: 12px;
             position: relative;
+            overflow: hidden;
+        }
+
+        .chat-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .online-indicator {
             width: 12px;
             height: 12px;
             background: #4a9c4a;
-            border: 2px solid #1a1a2e;
+            border: 2px solid var(--bg-secondary);
             border-radius: 50%;
             position: absolute;
             bottom: 2px;
@@ -124,13 +245,13 @@
         }
 
         .chat-name {
-            color: white;
+            color: var(--text-primary);
             font-weight: bold;
             margin-bottom: 5px;
         }
 
         .chat-last-message {
-            color: #888;
+            color: var(--text-secondary);
             font-size: 12px;
             white-space: nowrap;
             overflow: hidden;
@@ -142,13 +263,13 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: #0f0f1f;
+            background: var(--bg-tertiary);
         }
 
         #chat-header {
             padding: 15px 25px;
-            background: #1a1a2e;
-            border-bottom: 1px solid #2a2a3a;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             gap: 15px;
@@ -157,13 +278,20 @@
         #chat-avatar {
             width: 45px;
             height: 45px;
-            background: #4a9c4a;
+            background: var(--accent);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 20px;
+            overflow: hidden;
+        }
+
+        #chat-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         #chat-info {
@@ -171,13 +299,13 @@
         }
 
         #chat-name {
-            color: white;
+            color: var(--text-primary);
             font-weight: bold;
             margin-bottom: 3px;
         }
 
         #chat-status {
-            color: #4a9c4a;
+            color: var(--accent);
             font-size: 12px;
         }
 
@@ -201,27 +329,47 @@
             flex-direction: row-reverse;
         }
 
+        .message-avatar {
+            width: 35px;
+            height: 35px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .message-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         .message-content {
-            background: #1a1a2e;
+            background: var(--message-other);
             padding: 12px 16px;
             border-radius: 18px;
-            color: white;
+            color: var(--text-primary);
         }
 
         .message.own .message-content {
-            background: #4a9c4a;
+            background: var(--message-own);
         }
 
         .message-time {
-            color: rgba(255,255,255,0.5);
+            color: var(--text-secondary);
             font-size: 10px;
             margin-top: 5px;
         }
 
         #input-area {
             padding: 20px;
-            background: #1a1a2e;
-            border-top: 1px solid #2a2a3a;
+            background: var(--header-bg);
+            border-top: 1px solid var(--border);
         }
 
         #message-form {
@@ -232,23 +380,257 @@
         #message-input {
             flex: 1;
             padding: 12px 20px;
-            background: #2a2a3a;
-            border: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 30px;
-            color: white;
+            color: var(--text-primary);
             font-size: 14px;
             outline: none;
+        }
+
+        #message-input:focus {
+            border-color: var(--accent);
         }
 
         #send-btn {
             width: 40px;
             height: 40px;
             border: none;
-            background: #4a9c4a;
+            background: var(--accent);
             color: white;
             font-size: 20px;
             cursor: pointer;
             border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        #send-btn:hover {
+            transform: scale(1.1);
+            background: var(--accent-hover);
+        }
+
+        /* Панель настроек профиля */
+        #profile-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100%;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        #profile-panel-header {
+            padding: 20px;
+            background: var(--header-bg);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        #close-profile-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        #close-profile-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        #profile-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .profile-section {
+            background: var(--bg-tertiary);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .profile-section h3 {
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+
+        .current-avatar {
+            width: 100px;
+            height: 100px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            overflow: hidden;
+        }
+
+        .current-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .avatar-upload {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .upload-btn {
+            padding: 12px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .upload-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .color-options {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .color-option:hover {
+            transform: scale(1.2);
+            border-color: var(--text-primary);
+        }
+
+        .color-option.selected {
+            border-color: var(--text-primary);
+            transform: scale(1.1);
+        }
+
+        .nickname-input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 16px;
+            margin: 10px 0;
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Панель тем */
+        #themes-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100%;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        #themes-panel-header {
+            padding: 20px;
+            background: var(--header-bg);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        #close-themes-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        #themes-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .theme-card {
+            background: var(--bg-tertiary);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .theme-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .theme-preview {
+            height: 80px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 5px;
+            overflow: hidden;
+        }
+
+        .preview-color {
+            flex: 1;
+        }
+
+        .theme-name {
+            color: var(--text-primary);
+            font-weight: bold;
+        }
+
+        .theme-desc {
+            color: var(--text-secondary);
+            font-size: 12px;
         }
 
         /* Экран входа */
@@ -337,10 +719,11 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #2c3e50;
-            color: white;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             padding: 15px 25px;
             border-radius: 10px;
+            border-left: 4px solid var(--accent);
             transform: translateX(400px);
             transition: transform 0.3s;
             z-index: 2000;
@@ -368,13 +751,14 @@
                 width: 100%;
             }
             
-            #back-btn {
-                display: block;
+            #profile-panel,
+            #themes-panel {
+                width: 100%;
             }
         }
     </style>
 </head>
-<body>
+<body class="theme-dark">
     <div id="login-screen">
         <div class="login-card">
             <h1>🔥 NEYROCHAT</h1>
@@ -408,12 +792,19 @@
     <div id="app" style="display: none;">
         <div id="chats-panel">
             <div id="profile-header">
-                <div id="profile-avatar">👤</div>
+                <div id="profile-avatar" onclick="showProfilePanel()">
+                    <span id="profile-avatar-text">👤</span>
+                </div>
                 <div>
                     <div id="profile-name">Загрузка...</div>
                     <div id="profile-status">🟢 Онлайн</div>
                 </div>
+                <div id="header-buttons">
+                    <button class="header-btn" onclick="showThemesPanel()">🎨</button>
+                    <button class="header-btn" onclick="showProfilePanel()">⚙️</button>
+                </div>
             </div>
+            
             <div id="chats-list"></div>
         </div>
         
@@ -435,6 +826,106 @@
         </div>
     </div>
 
+    <!-- Панель профиля -->
+    <div id="profile-panel">
+        <div id="profile-panel-header">
+            <button id="close-profile-btn" onclick="closeProfilePanel()">←</button>
+            <h3 style="color: var(--text-primary);">Редактор профиля</h3>
+        </div>
+        <div id="profile-content">
+            <div class="profile-section">
+                <h3>👤 Аватарка</h3>
+                <div class="current-avatar" id="current-avatar-preview">
+                    <span id="avatar-preview-text">👤</span>
+                </div>
+                
+                <div class="avatar-upload">
+                    <button class="upload-btn" onclick="uploadAvatar()">📸 Загрузить фото</button>
+                    <input type="file" id="avatar-input" accept="image/*" style="display: none;" onchange="handleAvatarUpload(event)">
+                    
+                    <h4 style="color: var(--text-primary); margin: 15px 0 10px;">Или выбери цвет:</h4>
+                    <div class="color-options">
+                        <div class="color-option" style="background: #4a9c4a;" onclick="selectAvatarColor('#4a9c4a')"></div>
+                        <div class="color-option" style="background: #4a7c9c;" onclick="selectAvatarColor('#4a7c9c')"></div>
+                        <div class="color-option" style="background: #9c4a4a;" onclick="selectAvatarColor('#9c4a4a')"></div>
+                        <div class="color-option" style="background: #9c7c4a;" onclick="selectAvatarColor('#9c7c4a')"></div>
+                        <div class="color-option" style="background: #7c4a9c;" onclick="selectAvatarColor('#7c4a9c')"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="profile-section">
+                <h3>📝 Никнейм</h3>
+                <input type="text" id="nickname-input" class="nickname-input" placeholder="Введите новый ник">
+                <button class="save-btn" onclick="saveNickname()">Сохранить ник</button>
+            </div>
+            
+            <div class="profile-section">
+                <h3>⚙️ Настройки</h3>
+                <button class="save-btn" onclick="logout()" style="background: #ff4444;">🚪 Выйти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Панель тем -->
+    <div id="themes-panel">
+        <div id="themes-panel-header">
+            <button id="close-themes-btn" onclick="closeThemesPanel()">←</button>
+            <h3 style="color: var(--text-primary);">Выбор темы</h3>
+        </div>
+        <div id="themes-content">
+            <div class="theme-card" onclick="setTheme('theme-dark')">
+                <div class="theme-preview">
+                    <div class="preview-color" style="background: #0a0a1a;"></div>
+                    <div class="preview-color" style="background: #1a1a2e;"></div>
+                    <div class="preview-color" style="background: #4a9c4a;"></div>
+                </div>
+                <div class="theme-name">🌙 Темная тема</div>
+                <div class="theme-desc">Классическая темная тема</div>
+            </div>
+            
+            <div class="theme-card" onclick="setTheme('theme-light')">
+                <div class="theme-preview">
+                    <div class="preview-color" style="background: #f5f5f5;"></div>
+                    <div class="preview-color" style="background: #ffffff;"></div>
+                    <div class="preview-color" style="background: #2196f3;"></div>
+                </div>
+                <div class="theme-name">☀️ Светлая тема</div>
+                <div class="theme-desc">Приятная светлая тема</div>
+            </div>
+            
+            <div class="theme-card" onclick="setTheme('theme-neon')">
+                <div class="theme-preview">
+                    <div class="preview-color" style="background: #000000;"></div>
+                    <div class="preview-color" style="background: #00ff00;"></div>
+                    <div class="preview-color" style="background: #ff00ff;"></div>
+                </div>
+                <div class="theme-name">💚 Неоновая тема</div>
+                <div class="theme-desc">Киберпанк стиль</div>
+            </div>
+            
+            <div class="theme-card" onclick="setTheme('theme-cyber')">
+                <div class="theme-preview">
+                    <div class="preview-color" style="background: #0a0a2a;"></div>
+                    <div class="preview-color" style="background: #ff5500;"></div>
+                    <div class="preview-color" style="background: #ffaa00;"></div>
+                </div>
+                <div class="theme-name">🔥 Кибер-тема</div>
+                <div class="theme-desc">Огненные цвета</div>
+            </div>
+            
+            <div class="theme-card" onclick="setTheme('theme-forest')">
+                <div class="theme-preview">
+                    <div class="preview-color" style="background: #1a2a1a;"></div>
+                    <div class="preview-color" style="background: #6b8e4c;"></div>
+                    <div class="preview-color" style="background: #3a4a3a;"></div>
+                </div>
+                <div class="theme-name">🌲 Лесная тема</div>
+                <div class="theme-desc">Спокойные зеленые тона</div>
+            </div>
+        </div>
+    </div>
+
     <div id="notification">
         <span id="notification-text"></span>
     </div>
@@ -446,10 +937,92 @@
         let currentUser = null;
         let currentChat = null;
         let users = [];
-        let messages = [];
-        
-        // Хранилище сообщений для каждого чата
         let chatMessages = {};
+
+        // ========== ТЕМЫ ==========
+        function setTheme(themeName) {
+            document.body.className = themeName;
+            localStorage.setItem('neyrochat_theme', themeName);
+            showNotification(`🎨 Тема изменена`);
+        }
+
+        // Загружаем сохраненную тему
+        const savedTheme = localStorage.getItem('neyrochat_theme');
+        if (savedTheme) {
+            document.body.className = savedTheme;
+        }
+
+        function showThemesPanel() {
+            document.getElementById('themes-panel').style.display = 'flex';
+        }
+
+        function closeThemesPanel() {
+            document.getElementById('themes-panel').style.display = 'none';
+        }
+
+        // ========== ПРОФИЛЬ ==========
+        function showProfilePanel() {
+            document.getElementById('profile-panel').style.display = 'flex';
+            document.getElementById('nickname-input').value = currentUser?.username || '';
+        }
+
+        function closeProfilePanel() {
+            document.getElementById('profile-panel').style.display = 'none';
+        }
+
+        function uploadAvatar() {
+            document.getElementById('avatar-input').click();
+        }
+
+        function handleAvatarUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const avatarData = e.target.result;
+                    // Сохраняем в localStorage
+                    localStorage.setItem('neyrochat_avatar', avatarData);
+                    
+                    // Обновляем превью
+                    document.getElementById('profile-avatar').innerHTML = `<img src="${avatarData}">`;
+                    document.getElementById('profile-avatar-text').style.display = 'none';
+                    document.getElementById('current-avatar-preview').innerHTML = `<img src="${avatarData}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                    
+                    socket.emit('update-avatar', { avatar: avatarData });
+                    showNotification('✅ Аватарка обновлена');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function selectAvatarColor(color) {
+            // Обновляем цвет в профиле
+            document.getElementById('profile-avatar').style.background = color;
+            document.getElementById('profile-avatar').innerHTML = '<span id="profile-avatar-text">👤</span>';
+            document.getElementById('current-avatar-preview').style.background = color;
+            document.getElementById('current-avatar-preview').innerHTML = '<span id="avatar-preview-text">👤</span>';
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('neyrochat_avatar_color', color);
+            
+            socket.emit('update-avatar-color', { color: color });
+            showNotification('✅ Цвет аватарки обновлен');
+        }
+
+        function saveNickname() {
+            const newNickname = document.getElementById('nickname-input').value.trim();
+            if (newNickname && newNickname !== currentUser?.username) {
+                socket.emit('update-username', { username: newNickname });
+            }
+        }
+
+        socket.on('username-updated', (newUsername) => {
+            currentUser.username = newUsername;
+            document.getElementById('profile-name').textContent = newUsername;
+            localStorage.setItem('neyrochat_user', JSON.stringify(currentUser));
+            showNotification(`✅ Ник изменен на ${newUsername}`);
+            closeProfilePanel();
+        });
 
         // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
         const savedUser = localStorage.getItem('neyrochat_user');
@@ -464,11 +1037,22 @@
 
         socket.on('auto-login-success', (user) => {
             currentUser = user;
+            
+            // Загружаем аватарку
+            const savedAvatar = localStorage.getItem('neyrochat_avatar');
+            const savedColor = localStorage.getItem('neyrochat_avatar_color');
+            
+            if (savedAvatar) {
+                document.getElementById('profile-avatar').innerHTML = `<img src="${savedAvatar}">`;
+            } else if (savedColor) {
+                document.getElementById('profile-avatar').style.background = savedColor;
+            }
+            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app').style.display = 'flex';
             document.getElementById('profile-name').textContent = user.username;
-            document.getElementById('profile-avatar').style.background = user.avatarColor || '#4a9c4a';
             
+            showNotification(`✅ С возвращением, ${user.username}!`);
             socket.emit('get-users');
             startPing();
         });
@@ -560,6 +1144,12 @@
             showError(error);
         });
 
+        // ========== ВЫХОД ==========
+        function logout() {
+            localStorage.removeItem('neyrochat_user');
+            location.reload();
+        }
+
         // ========== ПОЛЬЗОВАТЕЛИ ==========
         socket.on('users-list', (usersList) => {
             users = usersList;
@@ -592,7 +1182,7 @@
             const list = document.getElementById('chats-list');
             
             if (!users || users.length === 0) {
-                list.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">👥 Нет других пользователей</div>';
+                list.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">👥 Нет других пользователей</div>';
                 return;
             }
             
@@ -635,28 +1225,22 @@
         socket.on('messages-list', (msgs) => {
             if (!currentChat) return;
             
-            // Сохраняем сообщения для этого чата
             chatMessages[currentChat] = msgs || [];
             renderMessages();
         });
 
         socket.on('new-message', (msg) => {
-            // Определяем с кем чат
             const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
             
-            // Сохраняем в хранилище
             if (!chatMessages[chatId]) chatMessages[chatId] = [];
             chatMessages[chatId].push(msg);
             
-            // Если это текущий чат - показываем
             if (chatId == currentChat) {
                 renderMessages();
             }
             
-            // Обновляем список чатов
             renderUsers();
             
-            // Уведомление если не в этом чате
             if (msg.from != currentUser?.id && chatId != currentChat) {
                 showNotification(`${msg.fromUsername}: ${msg.text}`);
             }
@@ -669,7 +1253,7 @@
             const msgs = chatMessages[currentChat] || [];
             
             if (msgs.length === 0) {
-                area.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">💬 Нет сообщений. Напишите что-нибудь!</div>';
+                area.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">💬 Нет сообщений. Напишите что-нибудь!</div>';
                 return;
             }
             
@@ -677,6 +1261,7 @@
                 const isOwn = msg.from == currentUser?.id;
                 return `
                     <div class="message ${isOwn ? 'own' : ''}">
+                        <div class="message-avatar" style="background: ${isOwn ? (currentUser?.avatarColor || '#4a9c4a') : '#4a9c4a'}">👤</div>
                         <div class="message-content">
                             <div>${escapeHtml(msg.text)}</div>
                             <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
@@ -731,6 +1316,7 @@
         function startPing() {
             setInterval(() => {
                 fetch('/ping').catch(() => {});
+                console.log('📡 Пинг отправлен');
             }, 4 * 60 * 1000);
         }
 
@@ -747,7 +1333,6 @@
             showNotification('❌ Потеряно соединение с сервером');
         });
 
-        // Экранирование HTML
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
