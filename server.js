@@ -25,6 +25,7 @@ db.exec(`
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         avatarColor TEXT,
+        avatar TEXT,
         online INTEGER DEFAULT 0,
         lastSeen DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -57,18 +58,39 @@ function checkPassword(username, password) {
 }
 
 function getUserById(id) {
-    const stmt = db.prepare('SELECT id, username, avatarColor, online FROM users WHERE id = ?');
+    const stmt = db.prepare('SELECT id, username, avatarColor, avatar, online FROM users WHERE id = ?');
     return stmt.get(id);
 }
 
 function getAllUsers(excludeUserId) {
-    const stmt = db.prepare('SELECT id, username, avatarColor, online FROM users WHERE id != ?');
+    const stmt = db.prepare('SELECT id, username, avatarColor, avatar, online FROM users WHERE id != ?');
     return stmt.all(excludeUserId);
 }
 
 function updateUserOnline(userId, online) {
     const stmt = db.prepare('UPDATE users SET online = ?, lastSeen = CURRENT_TIMESTAMP WHERE id = ?');
     return stmt.run(online ? 1 : 0, userId);
+}
+
+function updateUserAvatar(userId, avatar) {
+    const stmt = db.prepare('UPDATE users SET avatar = ? WHERE id = ?');
+    return stmt.run(avatar, userId);
+}
+
+function updateUserAvatarColor(userId, color) {
+    const stmt = db.prepare('UPDATE users SET avatarColor = ? WHERE id = ?');
+    return stmt.run(color, userId);
+}
+
+function updateUsername(userId, newUsername) {
+    // Проверяем, не занят ли ник
+    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(newUsername);
+    if (existing) {
+        return false;
+    }
+    const stmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+    stmt.run(newUsername, userId);
+    return true;
 }
 
 function saveMessage(fromUser, toUser, text) {
@@ -107,11 +129,14 @@ io.on('connection', (socket) => {
                 socket.emit('auto-login-success', {
                     id: user.id,
                     username: user.username,
-                    avatarColor: user.avatarColor
+                    avatarColor: user.avatarColor,
+                    avatar: user.avatar
                 });
                 
                 // Уведомляем всех о новом онлайн пользователе
                 io.emit('user-online', user.id);
+                
+                console.log(`✅ Автовход: ${user.username}`);
             }
         } catch (err) {
             console.log('Ошибка автовхода:', err);
@@ -141,7 +166,7 @@ io.on('connection', (socket) => {
     // ========== ВХОД ==========
     socket.on('login', (data) => {
         try {
-            const { username, password } = data;
+            const { username, password, remember } = data;
             
             const user = checkPassword(username, password);
             
@@ -159,7 +184,9 @@ io.on('connection', (socket) => {
             socket.emit('login_success', {
                 id: user.id,
                 username: user.username,
-                avatarColor: user.avatarColor
+                avatarColor: user.avatarColor,
+                avatar: user.avatar,
+                remember: remember
             });
             
             console.log(`✅ Вошел: ${username}`);
@@ -169,6 +196,46 @@ io.on('connection', (socket) => {
             
         } catch (err) {
             socket.emit('login_error', 'Ошибка входа');
+        }
+    });
+
+    // ========== ОБНОВЛЕНИЕ АВАТАРКИ ==========
+    socket.on('update-avatar', (data) => {
+        try {
+            updateUserAvatar(socket.userId, data.avatar);
+            socket.emit('avatar-updated');
+        } catch (err) {
+            console.log('Ошибка обновления аватарки:', err);
+        }
+    });
+
+    // ========== ОБНОВЛЕНИЕ ЦВЕТА АВАТАРКИ ==========
+    socket.on('update-avatar-color', (data) => {
+        try {
+            updateUserAvatarColor(socket.userId, data.color);
+            socket.emit('avatar-color-updated');
+        } catch (err) {
+            console.log('Ошибка обновления цвета:', err);
+        }
+    });
+
+    // ========== ОБНОВЛЕНИЕ ИМЕНИ ==========
+    socket.on('update-username', (data) => {
+        try {
+            const success = updateUsername(socket.userId, data.username);
+            if (success) {
+                socket.username = data.username;
+                socket.emit('username-updated', data.username);
+                // Обновляем имя во всех чатах
+                io.emit('user-renamed', {
+                    id: socket.userId,
+                    username: data.username
+                });
+            } else {
+                socket.emit('username-error', 'Это имя уже занято');
+            }
+        } catch (err) {
+            console.log('Ошибка обновления имени:', err);
         }
     });
 
@@ -190,10 +257,10 @@ io.on('connection', (socket) => {
         try {
             const { to, text } = data;
             
-            saveMessage(socket.userId, to, text);
+            const result = saveMessage(socket.userId, to, text);
             
             const message = {
-                id: Date.now(),
+                id: result.lastInsertRowid,
                 from: socket.userId,
                 fromUsername: socket.username,
                 to: to,
