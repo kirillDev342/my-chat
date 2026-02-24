@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NEYROCHAT - Профиль и темы</title>
+    <title>NEYROCHAT - Полная версия</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
@@ -589,6 +589,10 @@
             border-radius: 50%;
         }
 
+        #close-themes-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
         #themes-content {
             flex: 1;
             padding: 20px;
@@ -939,14 +943,65 @@
         let users = [];
         let chatMessages = {};
 
+        // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
+        (function autoLogin() {
+            const savedUser = localStorage.getItem('neyrochat_user');
+            console.log('🔍 Проверка сохраненного пользователя:', savedUser);
+            
+            if (savedUser) {
+                try {
+                    const userData = JSON.parse(savedUser);
+                    console.log('📦 Отправка auto-login для ID:', userData.id);
+                    socket.emit('auto-login', userData.id);
+                } catch (e) {
+                    console.error('❌ Ошибка парсинга:', e);
+                    localStorage.removeItem('neyrochat_user');
+                }
+            }
+        })();
+
+        socket.on('auto-login-success', (user) => {
+            console.log('✅ Автовход успешен:', user);
+            currentUser = user;
+            
+            // Обновляем данные в localStorage
+            localStorage.setItem('neyrochat_user', JSON.stringify({
+                id: user.id,
+                username: user.username,
+                avatarColor: user.avatarColor
+            }));
+            
+            // Загружаем аватарку если есть
+            if (user.avatar) {
+                document.getElementById('profile-avatar').innerHTML = `<img src="${user.avatar}">`;
+                document.getElementById('profile-avatar-text').style.display = 'none';
+            } else {
+                document.getElementById('profile-avatar').style.background = user.avatarColor || '#4a9c4a';
+                document.getElementById('profile-avatar').innerHTML = '<span id="profile-avatar-text">👤</span>';
+            }
+            
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            document.getElementById('profile-name').textContent = user.username;
+            
+            showNotification(`✅ С возвращением, ${user.username}!`);
+            socket.emit('get-users');
+            startPing();
+        });
+
+        socket.on('auto-login-error', () => {
+            console.log('❌ Автовход не удался');
+            localStorage.removeItem('neyrochat_user');
+        });
+
         // ========== ТЕМЫ ==========
         function setTheme(themeName) {
             document.body.className = themeName;
             localStorage.setItem('neyrochat_theme', themeName);
             showNotification(`🎨 Тема изменена`);
+            closeThemesPanel();
         }
 
-        // Загружаем сохраненную тему
         const savedTheme = localStorage.getItem('neyrochat_theme');
         if (savedTheme) {
             document.body.className = savedTheme;
@@ -980,34 +1035,42 @@
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const avatarData = e.target.result;
-                    // Сохраняем в localStorage
-                    localStorage.setItem('neyrochat_avatar', avatarData);
                     
-                    // Обновляем превью
+                    // Отправляем на сервер
+                    socket.emit('update-avatar', { avatar: avatarData });
+                    
+                    // Обновляем локально
                     document.getElementById('profile-avatar').innerHTML = `<img src="${avatarData}">`;
                     document.getElementById('profile-avatar-text').style.display = 'none';
                     document.getElementById('current-avatar-preview').innerHTML = `<img src="${avatarData}" style="width: 100%; height: 100%; object-fit: cover;">`;
                     
-                    socket.emit('update-avatar', { avatar: avatarData });
-                    showNotification('✅ Аватарка обновлена');
+                    showNotification('✅ Аватарка обновляется...');
                 };
                 reader.readAsDataURL(file);
             }
         }
 
+        socket.on('avatar-updated', () => {
+            showNotification('✅ Аватарка сохранена');
+        });
+
         function selectAvatarColor(color) {
-            // Обновляем цвет в профиле
+            // Отправляем на сервер
+            socket.emit('update-avatar-color', { color: color });
+            
+            // Обновляем локально
             document.getElementById('profile-avatar').style.background = color;
             document.getElementById('profile-avatar').innerHTML = '<span id="profile-avatar-text">👤</span>';
+            document.getElementById('profile-avatar-text').style.display = 'block';
             document.getElementById('current-avatar-preview').style.background = color;
             document.getElementById('current-avatar-preview').innerHTML = '<span id="avatar-preview-text">👤</span>';
             
-            // Сохраняем в localStorage
-            localStorage.setItem('neyrochat_avatar_color', color);
-            
-            socket.emit('update-avatar-color', { color: color });
-            showNotification('✅ Цвет аватарки обновлен');
+            showNotification('✅ Цвет аватарки обновляется...');
         }
+
+        socket.on('avatar-color-updated', () => {
+            showNotification('✅ Цвет аватарки сохранен');
+        });
 
         function saveNickname() {
             const newNickname = document.getElementById('nickname-input').value.trim();
@@ -1019,42 +1082,29 @@
         socket.on('username-updated', (newUsername) => {
             currentUser.username = newUsername;
             document.getElementById('profile-name').textContent = newUsername;
-            localStorage.setItem('neyrochat_user', JSON.stringify(currentUser));
+            
+            // Обновляем в localStorage
+            const savedUser = JSON.parse(localStorage.getItem('neyrochat_user') || '{}');
+            savedUser.username = newUsername;
+            localStorage.setItem('neyrochat_user', JSON.stringify(savedUser));
+            
             showNotification(`✅ Ник изменен на ${newUsername}`);
             closeProfilePanel();
         });
 
-        // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
-        const savedUser = localStorage.getItem('neyrochat_user');
-        if (savedUser) {
-            try {
-                const userData = JSON.parse(savedUser);
-                socket.emit('auto-login', userData.id);
-            } catch (e) {
-                localStorage.removeItem('neyrochat_user');
-            }
-        }
+        socket.on('username-error', (error) => {
+            showNotification(`❌ ${error}`);
+        });
 
-        socket.on('auto-login-success', (user) => {
-            currentUser = user;
-            
-            // Загружаем аватарку
-            const savedAvatar = localStorage.getItem('neyrochat_avatar');
-            const savedColor = localStorage.getItem('neyrochat_avatar_color');
-            
-            if (savedAvatar) {
-                document.getElementById('profile-avatar').innerHTML = `<img src="${savedAvatar}">`;
-            } else if (savedColor) {
-                document.getElementById('profile-avatar').style.background = savedColor;
+        socket.on('user-renamed', (data) => {
+            const user = users.find(u => u.id == data.id);
+            if (user) {
+                user.username = data.username;
+                renderUsers();
             }
-            
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
-            document.getElementById('profile-name').textContent = user.username;
-            
-            showNotification(`✅ С возвращением, ${user.username}!`);
-            socket.emit('get-users');
-            startPing();
+            if (currentChat == data.id) {
+                document.getElementById('chat-name').textContent = data.username;
+            }
         });
 
         // ========== ВКЛАДКИ ==========
@@ -1115,13 +1165,16 @@
                 return;
             }
 
+            console.log('📤 Отправка запроса на вход:', { username, remember });
             socket.emit('login', { username, password, remember });
         }
 
         socket.on('login_success', (user) => {
+            console.log('✅ Вход успешен:', user);
             currentUser = user;
             
             if (user.remember) {
+                console.log('💾 Сохраняем пользователя в localStorage');
                 localStorage.setItem('neyrochat_user', JSON.stringify({
                     id: user.id,
                     username: user.username,
@@ -1129,10 +1182,18 @@
                 }));
             }
             
+            // Загружаем аватарку если есть
+            if (user.avatar) {
+                document.getElementById('profile-avatar').innerHTML = `<img src="${user.avatar}">`;
+                document.getElementById('profile-avatar-text').style.display = 'none';
+            } else {
+                document.getElementById('profile-avatar').style.background = user.avatarColor || '#4a9c4a';
+                document.getElementById('profile-avatar').innerHTML = '<span id="profile-avatar-text">👤</span>';
+            }
+            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app').style.display = 'flex';
             document.getElementById('profile-name').textContent = user.username;
-            document.getElementById('profile-avatar').style.background = user.avatarColor || '#4a9c4a';
             
             showNotification(`✅ Добро пожаловать, ${user.username}!`);
             socket.emit('get-users');
@@ -1146,17 +1207,20 @@
 
         // ========== ВЫХОД ==========
         function logout() {
+            console.log('🚪 Выход из аккаунта');
             localStorage.removeItem('neyrochat_user');
             location.reload();
         }
 
         // ========== ПОЛЬЗОВАТЕЛИ ==========
         socket.on('users-list', (usersList) => {
+            console.log('👥 Получен список пользователей:', usersList);
             users = usersList;
             renderUsers();
         });
 
         socket.on('user-online', (userId) => {
+            console.log('🟢 Пользователь онлайн:', userId);
             const user = users.find(u => u.id == userId);
             if (user) {
                 user.online = true;
@@ -1168,6 +1232,7 @@
         });
 
         socket.on('user-offline', (userId) => {
+            console.log('🔴 Пользователь офлайн:', userId);
             const user = users.find(u => u.id == userId);
             if (user) {
                 user.online = false;
@@ -1190,10 +1255,16 @@
                 const userMessages = chatMessages[user.id] || [];
                 const lastMsg = userMessages[userMessages.length - 1];
                 
+                // Определяем содержимое аватарки
+                let avatarContent = '👤';
+                if (user.avatar) {
+                    avatarContent = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                }
+                
                 return `
                     <div class="chat-item" onclick="openChat('${user.id}')">
                         <div class="chat-avatar" style="background: ${user.avatarColor || '#4a9c4a'}">
-                            👤
+                            ${avatarContent}
                             ${user.online ? '<span class="online-indicator"></span>' : ''}
                         </div>
                         <div class="chat-info">
@@ -1215,7 +1286,15 @@
             const user = users.find(u => u.id == userId);
             
             document.getElementById('chat-name').textContent = user.username;
-            document.getElementById('chat-avatar').style.background = user.avatarColor || '#4a9c4a';
+            
+            // Аватарка в шапке чата
+            if (user.avatar) {
+                document.getElementById('chat-avatar').innerHTML = `<img src="${user.avatar}">`;
+            } else {
+                document.getElementById('chat-avatar').style.background = user.avatarColor || '#4a9c4a';
+                document.getElementById('chat-avatar').innerHTML = '👤';
+            }
+            
             document.getElementById('chat-status').textContent = user.online ? '🟢 Онлайн' : '⚪ Офлайн';
             
             socket.emit('get-messages', userId);
@@ -1223,6 +1302,7 @@
 
         // ========== СООБЩЕНИЯ ==========
         socket.on('messages-list', (msgs) => {
+            console.log('📨 Получена история:', msgs.length);
             if (!currentChat) return;
             
             chatMessages[currentChat] = msgs || [];
@@ -1230,6 +1310,7 @@
         });
 
         socket.on('new-message', (msg) => {
+            console.log('📩 Новое сообщение:', msg);
             const chatId = msg.from == currentUser?.id ? msg.to : msg.from;
             
             if (!chatMessages[chatId]) chatMessages[chatId] = [];
@@ -1259,9 +1340,18 @@
             
             area.innerHTML = msgs.map(msg => {
                 const isOwn = msg.from == currentUser?.id;
+                const sender = users.find(u => u.id == msg.from) || { avatarColor: '#4a9c4a', avatar: null };
+                
+                let avatarContent = '👤';
+                if (sender.avatar) {
+                    avatarContent = `<img src="${sender.avatar}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                }
+                
                 return `
                     <div class="message ${isOwn ? 'own' : ''}">
-                        <div class="message-avatar" style="background: ${isOwn ? (currentUser?.avatarColor || '#4a9c4a') : '#4a9c4a'}">👤</div>
+                        <div class="message-avatar" style="background: ${sender.avatarColor || '#4a9c4a'}">
+                            ${avatarContent}
+                        </div>
                         <div class="message-content">
                             <div>${escapeHtml(msg.text)}</div>
                             <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
@@ -1326,10 +1416,11 @@
         });
 
         socket.on('connect', () => {
-            console.log('✅ Подключено к серверу');
+            console.log('✅ Socket.io подключен');
         });
 
         socket.on('disconnect', () => {
+            console.log('❌ Socket.io отключен');
             showNotification('❌ Потеряно соединение с сервером');
         });
 
