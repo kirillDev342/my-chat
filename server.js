@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server, {  // ← io создается ЗДЕСЬ
+const io = socketIO(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
@@ -24,7 +24,9 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        avatarColor TEXT
+        avatarColor TEXT,
+        online INTEGER DEFAULT 0,
+        lastSeen DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 `);
 
@@ -54,9 +56,19 @@ function checkPassword(username, password) {
     return stmt.get(username, password);
 }
 
+function getUserById(id) {
+    const stmt = db.prepare('SELECT id, username, avatarColor, online FROM users WHERE id = ?');
+    return stmt.get(id);
+}
+
 function getAllUsers(excludeUserId) {
-    const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id != ?');
+    const stmt = db.prepare('SELECT id, username, avatarColor, online FROM users WHERE id != ?');
     return stmt.all(excludeUserId);
+}
+
+function updateUserOnline(userId, online) {
+    const stmt = db.prepare('UPDATE users SET online = ?, lastSeen = CURRENT_TIMESTAMP WHERE id = ?');
+    return stmt.run(online ? 1 : 0, userId);
 }
 
 function saveMessage(fromUser, toUser, text) {
@@ -83,20 +95,23 @@ io.on('connection', (socket) => {
     // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
     socket.on('auto-login', (userId) => {
         try {
-            const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id = ?');
-            const user = stmt.get(userId);
+            const user = getUserById(userId);
             
             if (user) {
                 socket.userId = user.id;
                 socket.username = user.username;
                 
                 onlineUsers[user.id] = socket.id;
+                updateUserOnline(user.id, true);
                 
                 socket.emit('auto-login-success', {
                     id: user.id,
                     username: user.username,
                     avatarColor: user.avatarColor
                 });
+                
+                // Уведомляем всех о новом онлайн пользователе
+                io.emit('user-online', user.id);
             }
         } catch (err) {
             console.log('Ошибка автовхода:', err);
@@ -139,6 +154,7 @@ io.on('connection', (socket) => {
             socket.username = user.username;
             
             onlineUsers[user.id] = socket.id;
+            updateUserOnline(user.id, true);
             
             socket.emit('login_success', {
                 id: user.id,
@@ -148,6 +164,9 @@ io.on('connection', (socket) => {
             
             console.log(`✅ Вошел: ${username}`);
             
+            // Уведомляем всех о новом онлайн пользователе
+            io.emit('user-online', user.id);
+            
         } catch (err) {
             socket.emit('login_error', 'Ошибка входа');
         }
@@ -156,7 +175,10 @@ io.on('connection', (socket) => {
     // ========== ПОЛУЧИТЬ ПОЛЬЗОВАТЕЛЕЙ ==========
     socket.on('get-users', () => {
         try {
-            const users = getAllUsers(socket.userId);
+            const users = getAllUsers(socket.userId).map(u => ({
+                ...u,
+                online: onlineUsers[u.id] ? true : false
+            }));
             socket.emit('users-list', users);
         } catch (err) {
             console.log('Ошибка получения пользователей:', err);
@@ -204,7 +226,12 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (socket.userId) {
             delete onlineUsers[socket.userId];
+            updateUserOnline(socket.userId, false);
+            
             console.log(`🔴 Отключился: ${socket.username}`);
+            
+            // Уведомляем всех о выходе
+            io.emit('user-offline', socket.userId);
         }
     });
 });
