@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4a9c4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="NEYROCHAT">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/134/134914.png">
     <title>NEYROCHAT - Общайся с друзьями</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -1126,6 +1132,95 @@
         socket.on('disconnect', () => {
             showNotification('❌ Потеряно соединение с сервером');
         });
+            <!-- Эмодзи пикер -->
+    <div id="emoji-picker"></div>
+
+    <!-- Уведомления -->
+    <div id="notification">
+        <span id="notification-text"></span>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // ========== ВЕСЬ ТВОЙ СТАРЫЙ КОД ЗДЕСЬ ... ==========
+        
+        // ========== И ПОСЛЕ НЕГО ВСТАВЬ ЭТО ==========
+        
+        // ========== PWA И УВЕДОМЛЕНИЯ ==========
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✅ Service Worker готов'))
+                    .catch(err => console.log('❌ Ошибка SW:', err));
+            });
+        }
+
+        // Запрос разрешения на уведомления
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                console.log('❌ Уведомления не поддерживаются');
+                return;
+            }
+            
+            if (Notification.permission === 'granted') {
+                console.log('✅ Уведомления уже разрешены');
+                return;
+            }
+            
+            if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        showNotification('✅ Уведомления включены!', 'Теперь вы будете получать сообщения');
+                    }
+                });
+            }
+        }
+
+        // Добавляем кнопку уведомлений
+        function addNotificationButton() {
+            const chatActions = document.getElementById('chat-actions');
+            if (chatActions && !document.getElementById('notif-btn')) {
+                const notifBtn = document.createElement('button');
+                notifBtn.id = 'notif-btn';
+                notifBtn.className = 'action-btn';
+                notifBtn.innerHTML = '🔔';
+                notifBtn.onclick = requestNotificationPermission;
+                notifBtn.title = 'Включить уведомления';
+                chatActions.appendChild(notifBtn);
+            }
+        }
+
+        // Запрашиваем при входе
+        socket.on('login_success', (user) => {
+            setTimeout(() => {
+                requestNotificationPermission();
+                addNotificationButton();
+            }, 2000);
+        });
+
+        // Показываем уведомление при новом сообщении
+        const originalMessageHandler = socket.on('new-message', (msg) => {
+            if (msg.from != currentUser?.id && document.hidden) {
+                if (Notification.permission === 'granted') {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification(`💬 ${msg.fromUsername}`, {
+                            body: msg.text,
+                            icon: 'https://cdn-icons-png.flaticon.com/512/134/134914.png',
+                            badge: 'https://cdn-icons-png.flaticon.com/512/134/134914.png',
+                            vibrate: [200, 100, 200],
+                            tag: 'chat-message',
+                            data: { url: window.location.href }
+                        });
+                    });
+                }
+            }
+        });
+
+        // ========== КОНЕЦ ВСТАВКИ ==========
     </script>
 </body>
 </html>
+    </script>
+</body>
+</html>
+
