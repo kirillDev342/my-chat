@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NEYROCHAT - Голосовые сообщения</title>
+    <title>NEYROCHAT - Полная версия</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
@@ -70,6 +70,22 @@
             --header-bg: #111111;
             --voice-bg: #222222;
             --voice-progress: #ff00ff;
+        }
+
+        .theme-cyber {
+            --bg-primary: #0a0a2a;
+            --bg-secondary: #1a1a3a;
+            --bg-tertiary: #2a2a4a;
+            --text-primary: #ffaa00;
+            --text-secondary: #ff8800;
+            --accent: #ff5500;
+            --accent-hover: #ff7700;
+            --border: #ff5500;
+            --message-own: #ff5500;
+            --message-other: #1a1a3a;
+            --header-bg: #1a1a3a;
+            --voice-bg: #2a2a4a;
+            --voice-progress: #ff5500;
         }
 
         body {
@@ -429,7 +445,6 @@
             line-height: 1.4;
         }
 
-        /* Голосовое сообщение */
         .voice-message {
             display: flex;
             align-items: center;
@@ -487,7 +502,6 @@
             text-align: right;
         }
 
-        /* Панель записи голоса */
         #voice-recording-panel {
             position: absolute;
             bottom: 100px;
@@ -675,7 +689,6 @@
             100% { transform: scale(1); }
         }
 
-        /* Панель профиля */
         #profile-panel {
             position: absolute;
             top: 0;
@@ -816,7 +829,6 @@
             font-weight: bold;
         }
 
-        /* Панель тем */
         #themes-panel {
             position: absolute;
             top: 0;
@@ -898,7 +910,6 @@
             font-size: 12px;
         }
 
-        /* Экран входа */
         #login-screen {
             position: fixed;
             top: 0;
@@ -999,7 +1010,6 @@
             transform: translateX(0);
         }
 
-        /* Адаптация для телефона */
         @media (max-width: 768px) {
             #chats-panel {
                 position: absolute;
@@ -1136,7 +1146,6 @@
         </div>
     </div>
 
-    <!-- Панель профиля -->
     <div id="profile-panel">
         <div id="profile-panel-header">
             <button id="close-profile-btn" onclick="closeProfilePanel()">←</button>
@@ -1177,7 +1186,6 @@
         </div>
     </div>
 
-    <!-- Панель тем -->
     <div id="themes-panel">
         <div id="themes-panel-header">
             <button id="close-themes-btn" onclick="closeThemesPanel()">←</button>
@@ -1254,11 +1262,7 @@
         let audioChunks = [];
         let recordingTimer = null;
         let recordingSeconds = 0;
-        let audioContext = null;
-        let analyser = null;
-        let microphone = null;
-        let javascriptNode = null;
-        let recordingStartTime = null;
+        let audioStream = null;
 
         // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
         (function autoLogin() {
@@ -1685,7 +1689,7 @@
                 let messageContent = '';
                 if (msg.type === 'voice') {
                     messageContent = `
-                        <div class="voice-message" data-audio="${msg.audio}">
+                        <div class="voice-message" data-audio="${msg.audio || ''}">
                             <button class="voice-play-btn" onclick="playVoiceMessage(this)">▶</button>
                             <div class="voice-wave">
                                 <div class="voice-progress"></div>
@@ -1694,7 +1698,7 @@
                         </div>
                     `;
                 } else {
-                    messageContent = `<div class="message-text">${escapeHtml(msg.text)}</div>`;
+                    messageContent = `<div class="message-text">${escapeHtml(msg.text || '')}</div>`;
                 }
                 
                 return `
@@ -1798,37 +1802,59 @@
         // ========== ГОЛОСОВЫЕ СООБЩЕНИЯ ==========
         async function startVoiceRecording() {
             try {
+                if (!currentChat) {
+                    showNotification('❌ Сначала выберите чат');
+                    return;
+                }
+
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     showNotification('❌ Ваш браузер не поддерживает запись голоса');
                     return;
                 }
 
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
+                });
                 
-                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder = new MediaRecorder(audioStream, {
+                    mimeType: 'audio/webm'
+                });
+                
                 audioChunks = [];
                 
                 mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
                 };
                 
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
                     
-                    // Здесь можно отправить голосовое сообщение
-                    // Пока просто показываем уведомление
-                    showNotification('✅ Голосовое сообщение записано');
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        socket.emit('send-voice', {
+                            to: currentChat,
+                            audio: reader.result,
+                            duration: formatTime(recordingSeconds)
+                        });
+                        showNotification('✅ Голосовое отправлено');
+                    };
+                    reader.readAsDataURL(audioBlob);
                     
-                    // Очищаем
-                    stream.getTracks().forEach(track => track.stop());
+                    if (audioStream) {
+                        audioStream.getTracks().forEach(track => track.stop());
+                        audioStream = null;
+                    }
                 };
                 
-                // Показываем панель записи
                 document.getElementById('voice-recording-panel').style.display = 'flex';
                 document.getElementById('voice-record-btn').classList.add('recording');
                 
-                // Запускаем таймер
                 recordingSeconds = 0;
                 recordingTimer = setInterval(() => {
                     recordingSeconds++;
@@ -1836,28 +1862,29 @@
                     const seconds = (recordingSeconds % 60).toString().padStart(2, '0');
                     document.getElementById('recording-timer').textContent = `${minutes}:${seconds}`;
                     
-                    // Анимируем прогресс
                     const progress = (recordingSeconds / 60) * 100;
                     document.getElementById('recording-progress').style.width = `${Math.min(progress, 100)}%`;
                 }, 1000);
                 
-                // Запускаем запись
                 mediaRecorder.start();
                 
-                // Автоматически останавливаем через 60 секунд
                 setTimeout(() => {
                     if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        stopVoiceRecording();
+                        stopVoiceRecording(true);
                     }
                 }, 60000);
                 
             } catch (err) {
-                console.error('Ошибка доступа к микрофону:', err);
-                showNotification('❌ Нет доступа к микрофону');
+                console.error('Ошибка:', err);
+                if (err.name === 'NotAllowedError') {
+                    showNotification('❌ Разрешите доступ к микрофону');
+                } else {
+                    showNotification('❌ Ошибка микрофона');
+                }
             }
         }
 
-        function stopVoiceRecording() {
+        function stopVoiceRecording(send = true) {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
             }
@@ -1869,67 +1896,53 @@
         }
 
         function cancelVoiceRecording() {
-            stopVoiceRecording();
+            stopVoiceRecording(false);
             showNotification('❌ Запись отменена');
         }
 
         function sendVoiceMessage() {
-            if (!currentChat) {
-                showNotification('❌ Выберите чат');
-                stopVoiceRecording();
-                return;
-            }
-            
-            stopVoiceRecording();
-            
-            // Здесь будет отправка голосового сообщения на сервер
-            showNotification('✅ Голосовое сообщение отправлено');
-            
-            // Пока добавляем тестовое сообщение
-            const testVoiceMsg = {
-                from: currentUser.id,
-                fromUsername: currentUser.username,
-                to: currentChat,
-                type: 'voice',
-                duration: '00:' + recordingSeconds.toString().padStart(2, '0'),
-                timestamp: new Date().toISOString()
-            };
-            
-            const chatId = currentChat;
-            if (!chatMessages[chatId]) chatMessages[chatId] = [];
-            chatMessages[chatId].push(testVoiceMsg);
-            renderMessages();
+            stopVoiceRecording(true);
         }
 
-        // Воспроизведение голосового сообщения
         function playVoiceMessage(button) {
             const voiceMessage = button.closest('.voice-message');
+            const audioData = voiceMessage.dataset.audio;
             const progressBar = voiceMessage.querySelector('.voice-progress');
-            const timeSpan = voiceMessage.querySelector('.voice-time');
+            
+            if (!audioData) return;
             
             if (button.textContent === '▶') {
                 button.textContent = '⏸';
                 
-                // Имитация воспроизведения
-                let progress = 0;
-                const interval = setInterval(() => {
-                    progress += 2;
-                    progressBar.style.width = progress + '%';
-                    
-                    if (progress >= 100) {
-                        clearInterval(interval);
-                        button.textContent = '▶';
-                        progressBar.style.width = '0%';
-                    }
-                }, 100);
+                const audio = new Audio(audioData);
+                voiceMessage.audio = audio;
                 
-                // Сохраняем интервал для остановки
-                voiceMessage.dataset.interval = interval;
+                audio.onended = () => {
+                    button.textContent = '▶';
+                    progressBar.style.width = '0%';
+                    voiceMessage.audio = null;
+                };
+                
+                audio.ontimeupdate = () => {
+                    const progress = (audio.currentTime / audio.duration) * 100;
+                    progressBar.style.width = progress + '%';
+                };
+                
+                audio.play();
             } else {
                 button.textContent = '▶';
-                clearInterval(voiceMessage.dataset.interval);
+                if (voiceMessage.audio) {
+                    voiceMessage.audio.pause();
+                    voiceMessage.audio = null;
+                }
                 progressBar.style.width = '0%';
             }
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
         }
 
         // ========== МЕНЮ ВЛОЖЕНИЙ ==========
@@ -1946,7 +1959,6 @@
                 const file = e.target.files[0];
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    // Здесь будет отправка фото
                     showNotification('📸 Отправка фото пока в разработке');
                 };
                 reader.readAsDataURL(file);
