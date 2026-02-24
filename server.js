@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const path = require('path');
+const Database = require('better-sqlite3');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,161 +15,176 @@ const io = socketIO(server, {
 
 app.use(express.static(path.join(__dirname, '/')));
 
-let users = {}; // { socketId: username }
+// ========== SQLite БАЗА ДАННЫХ ==========
+const db = new Database('chat.db');
 
+// Создаем таблицы
+db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        avatarColor TEXT
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fromUser INTEGER,
+        toUser INTEGER,
+        text TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+console.log('✅ База данных готова!');
+
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БД ==========
+function createUser(username, password) {
+    const colors = ['#4a9c4a', '#4a7c9c', '#9c4a4a', '#9c7c4a', '#7c4a9c'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    const stmt = db.prepare('INSERT INTO users (username, password, avatarColor) VALUES (?, ?, ?)');
+    return stmt.run(username, password, randomColor);
+}
+
+function checkPassword(username, password) {
+    const stmt = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?');
+    return stmt.get(username, password);
+}
+
+function getAllUsers(excludeUserId) {
+    const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id != ?');
+    return stmt.all(excludeUserId);
+}
+
+function saveMessage(fromUser, toUser, text) {
+    const stmt = db.prepare('INSERT INTO messages (fromUser, toUser, text) VALUES (?, ?, ?)');
+    return stmt.run(fromUser, toUser, text);
+}
+
+function getMessages(user1, user2) {
+    const stmt = db.prepare(`
+        SELECT * FROM messages 
+        WHERE (fromUser = ? AND toUser = ?) OR (fromUser = ? AND toUser = ?)
+        ORDER BY timestamp ASC
+    `);
+    return stmt.all(user1, user2, user2, user1);
+}
+
+// ========== ХРАНИЛИЩЕ ОНЛАЙН ПОЛЬЗОВАТЕЛЕЙ ==========
+let onlineUsers = {};
+
+// ========== СОКЕТ СОЕДИНЕНИЯ ==========
 io.on('connection', (socket) => {
-    console.log('🟢 Новый пользователь подключился:', socket.id);
+    console.log('🟢 Новый пользователь:', socket.id);
 
-    // ========== ВХОД В ЧАТ ==========
-    socket.on('join', (username) => {
-        console.log('👤 Попытка входа:', username);
-        
-        if (!username || username.trim() === '') {
-            socket.emit('join_error', 'Имя не может быть пустым');
-            return;
+    // ========== РЕГИСТРАЦИЯ ==========
+    socket.on('register', (data) => {
+        try {
+            const { username, password } = data;
+            
+            // Проверяем, есть ли уже такой пользователь
+            const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+            if (existing) {
+                socket.emit('register_error', 'Пользователь уже существует');
+                return;
+            }
+            
+            // Создаем нового пользователя
+            createUser(username, password);
+            
+            socket.emit('register_success');
+            console.log(`✅ Зарегистрирован: ${username}`);
+            
+        } catch (err) {
+            socket.emit('register_error', 'Ошибка регистрации');
         }
-        
-        // Проверяем, не занято ли имя
-        if (Object.values(users).includes(username)) {
-            socket.emit('join_error', 'Это имя уже занято');
-            return;
-        }
-        
-        // Сохраняем пользователя
-        socket.username = username;
-        users[socket.id] = username;
-        
-        console.log('✅ Пользователь вошел:', username);
-        console.log('👥 Все пользователи:', Object.values(users));
-        
-        // Отправляем подтверждение входа
-        socket.emit('join_success');
-        
-        // Отправляем список пользователей ВСЕМ
-        io.emit('users', Object.values(users));
-        
-        // Сообщаем всем о новом пользователе
-        io.emit('message', {
-            username: '🤖 Система',
-            text: `${username} присоединился к чату`
-        });
     });
 
-    // ========== ПОЛУЧИТЬ СПИСОК ПОЛЬЗОВАТЕЛЕЙ ==========
+    // ========== ВХОД ==========
+    socket.on('login', (data) => {
+        try {
+            const { username, password } = data;
+            
+            // Проверяем пароль
+            const user = checkPassword(username, password);
+            
+            if (!user) {
+                socket.emit('login_error', 'Неверный логин или пароль');
+                return;
+            }
+            
+            socket.userId = user.id;
+            socket.username = user.username;
+            
+            onlineUsers[user.id] = socket.id;
+            
+            socket.emit('login_success', {
+                id: user.id,
+                username: user.username,
+                avatarColor: user.avatarColor
+            });
+            
+            console.log(`✅ Вошел: ${username}`);
+            
+        } catch (err) {
+            socket.emit('login_error', 'Ошибка входа');
+        }
+    });
+
+    // ========== ПОЛУЧИТЬ ПОЛЬЗОВАТЕЛЕЙ ==========
     socket.on('get-users', () => {
-        socket.emit('users', Object.values(users));
-    });
-
-    // ========== ОТПРАВКА СООБЩЕНИЙ ==========
-    socket.on('message', (text) => {
-        if (socket.username && text && text.trim()) {
-            console.log(`📨 ${socket.username}: ${text}`);
-            io.emit('message', {
-                username: socket.username,
-                text: text
-            });
+        try {
+            const users = getAllUsers(socket.userId);
+            socket.emit('users-list', users);
+        } catch (err) {
+            console.log('Ошибка получения пользователей:', err);
         }
     });
 
-    // ========== ЗВОНКИ ==========
-    socket.on('call-user', (data) => {
-        console.log(`📞 Звонок от ${socket.username} к ${data.to}`);
-        
-        // Находим сокет получателя
-        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
-        
-        if (targetSocketId) {
-            // Отправляем звонок конкретному пользователю
-            io.to(targetSocketId).emit('incoming-call', {
-                from: socket.username,
-                offer: data.offer,
-                fromId: socket.id
-            });
-            console.log(`✅ Звонок отправлен пользователю ${data.to}`);
-        } else {
-            console.log(`❌ Пользователь ${data.to} не найден`);
-            socket.emit('call-error', 'Пользователь не найден или офлайн');
+    // ========== ОТПРАВКА СООБЩЕНИЯ ==========
+    socket.on('send-message', (data) => {
+        try {
+            const { to, text } = data;
+            
+            saveMessage(socket.userId, to, text);
+            
+            const message = {
+                from: socket.userId,
+                fromUsername: socket.username,
+                to: to,
+                text: text,
+                timestamp: new Date().toISOString()
+            };
+            
+            if (onlineUsers[to]) {
+                io.to(onlineUsers[to]).emit('new-message', message);
+            }
+            
+            socket.emit('new-message', message);
+            
+        } catch (err) {
+            console.log('Ошибка отправки:', err);
         }
     });
 
-    socket.on('accept-call', (data) => {
-        console.log(`✅ Звонок принят от ${socket.username} для ${data.to}`);
-        
-        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
-        
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-accepted', {
-                from: socket.username,
-                answer: data.answer
-            });
-        }
-    });
-
-    socket.on('reject-call', (data) => {
-        console.log(`❌ Звонок отклонен от ${socket.username} для ${data.to}`);
-        
-        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
-        
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-rejected', {
-                from: socket.username
-            });
-        }
-    });
-
-    socket.on('call-busy', (data) => {
-        console.log(`⏳ Пользователь ${socket.username} занят`);
-        
-        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
-        
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-busy', {
-                from: socket.username
-            });
-        }
-    });
-
-    socket.on('ice-candidate', (data) => {
-        console.log(`❄️ ICE кандидат от ${socket.username} для ${data.to}`);
-        
-        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
-        
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('ice-candidate', {
-                from: socket.username,
-                candidate: data.candidate
-            });
-        }
-    });
-
-    socket.on('end-call', (data) => {
-        console.log(`📴 Звонок завершен от ${socket.username}`);
-        
-        const targetSocketId = Object.keys(users).find(id => users[id] === data.to);
-        
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-ended', {
-                from: socket.username
-            });
+    // ========== ПОЛУЧИТЬ ИСТОРИЮ ==========
+    socket.on('get-messages', (friendId) => {
+        try {
+            const messages = getMessages(socket.userId, friendId);
+            socket.emit('messages-list', messages);
+        } catch (err) {
+            console.log('Ошибка получения истории:', err);
         }
     });
 
     // ========== ОТКЛЮЧЕНИЕ ==========
     socket.on('disconnect', () => {
-        if (socket.username) {
-            console.log('🔴 Пользователь отключился:', socket.username);
-            
-            // Удаляем пользователя
-            delete users[socket.id];
-            
-            // Обновляем список для всех
-            io.emit('users', Object.values(users));
-            
-            // Сообщаем о выходе
-            io.emit('message', {
-                username: '🤖 Система',
-                text: `${socket.username} покинул чат`
-            });
+        if (socket.userId) {
+            delete onlineUsers[socket.userId];
+            console.log(`🔴 Отключился: ${socket.username}`);
         }
     });
 });
