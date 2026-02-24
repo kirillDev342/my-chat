@@ -1,3 +1,82 @@
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const path = require('path');
+const Database = require('better-sqlite3');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server, {  // ← io создается ЗДЕСЬ
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+app.use(express.static(path.join(__dirname, '/')));
+
+// ========== SQLite БАЗА ДАННЫХ ==========
+const db = new Database('chat.db');
+
+// Создаем таблицы
+db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        avatarColor TEXT
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fromUser INTEGER,
+        toUser INTEGER,
+        text TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+console.log('✅ База данных готова!');
+
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БД ==========
+function createUser(username, password) {
+    const colors = ['#4a9c4a', '#4a7c9c', '#9c4a4a', '#9c7c4a', '#7c4a9c'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    const stmt = db.prepare('INSERT INTO users (username, password, avatarColor) VALUES (?, ?, ?)');
+    return stmt.run(username, password, randomColor);
+}
+
+function checkPassword(username, password) {
+    const stmt = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?');
+    return stmt.get(username, password);
+}
+
+function getAllUsers(excludeUserId) {
+    const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id != ?');
+    return stmt.all(excludeUserId);
+}
+
+function saveMessage(fromUser, toUser, text) {
+    const stmt = db.prepare('INSERT INTO messages (fromUser, toUser, text) VALUES (?, ?, ?)');
+    return stmt.run(fromUser, toUser, text);
+}
+
+function getMessages(user1, user2) {
+    const stmt = db.prepare(`
+        SELECT * FROM messages 
+        WHERE (fromUser = ? AND toUser = ?) OR (fromUser = ? AND toUser = ?)
+        ORDER BY timestamp ASC
+    `);
+    return stmt.all(user1, user2, user2, user1);
+}
+
+// ========== ХРАНИЛИЩЕ ОНЛАЙН ПОЛЬЗОВАТЕЛЕЙ ==========
+let onlineUsers = {};
+
+// ========== СОКЕТ СОЕДИНЕНИЯ ==========
 io.on('connection', (socket) => {
     console.log('🟢 Новый пользователь:', socket.id);
 
@@ -29,7 +108,6 @@ io.on('connection', (socket) => {
         try {
             const { username, password } = data;
             
-            // Проверяем, есть ли уже такой пользователь
             const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
             if (existing) {
                 socket.emit('register_error', 'Пользователь уже существует');
@@ -93,6 +171,7 @@ io.on('connection', (socket) => {
             saveMessage(socket.userId, to, text);
             
             const message = {
+                id: Date.now(),
                 from: socket.userId,
                 fromUsername: socket.username,
                 to: to,
@@ -121,11 +200,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // ========== ПИНГ ДЛЯ БОРЬБЫ СО СНОМ ==========
-    socket.on('ping', () => {
-        socket.emit('pong');
-    });
-
     // ========== ОТКЛЮЧЕНИЕ ==========
     socket.on('disconnect', () => {
         if (socket.userId) {
@@ -135,7 +209,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// ========== ПИНГ HTTP ДЛЯ БОРЬБЫ СО СНОМ ==========
+// ========== ПИНГ ДЛЯ БОРЬБЫ СО СНОМ ==========
 app.get('/ping', (req, res) => {
     res.send('pong');
 });
