@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NEYROCHAT - Полная версия</title>
+    <title>NEYROCHAT - Голосовые сообщения</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
@@ -36,6 +36,8 @@
             --message-own: #4a9c4a;
             --message-other: #1a1a2e;
             --header-bg: #1a1a2e;
+            --voice-bg: #2a2a3a;
+            --voice-progress: #4a9c4a;
         }
 
         .theme-light {
@@ -50,6 +52,8 @@
             --message-own: #2196f3;
             --message-other: #ffffff;
             --header-bg: #ffffff;
+            --voice-bg: #e0e0e0;
+            --voice-progress: #2196f3;
         }
 
         .theme-neon {
@@ -64,34 +68,8 @@
             --message-own: #ff00ff;
             --message-other: #222222;
             --header-bg: #111111;
-        }
-
-        .theme-cyber {
-            --bg-primary: #0a0a2a;
-            --bg-secondary: #1a1a3a;
-            --bg-tertiary: #2a2a4a;
-            --text-primary: #ffaa00;
-            --text-secondary: #ff8800;
-            --accent: #ff5500;
-            --accent-hover: #ff7700;
-            --border: #ff5500;
-            --message-own: #ff5500;
-            --message-other: #1a1a3a;
-            --header-bg: #1a1a3a;
-        }
-
-        .theme-forest {
-            --bg-primary: #1a2a1a;
-            --bg-secondary: #2a3a2a;
-            --bg-tertiary: #3a4a3a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #a0a0a0;
-            --accent: #6b8e4c;
-            --accent-hover: #7fa85c;
-            --border: #4a6a3a;
-            --message-own: #6b8e4c;
-            --message-other: #2a3a2a;
-            --header-bg: #2a3a2a;
+            --voice-bg: #222222;
+            --voice-progress: #ff00ff;
         }
 
         body {
@@ -115,6 +93,7 @@
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            transition: transform 0.3s ease;
         }
 
         #profile-header {
@@ -186,6 +165,25 @@
             transform: scale(1.1);
         }
 
+        #search-section {
+            padding: 15px 20px;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+        }
+
+        #search-input:focus {
+            border-color: var(--accent);
+        }
+
         #chats-list {
             flex: 1;
             overflow-y: auto;
@@ -206,6 +204,10 @@
         .chat-item:hover {
             background: var(--bg-tertiary);
             transform: translateX(5px);
+        }
+
+        .chat-item.active {
+            border-left: 4px solid var(--accent);
         }
 
         .chat-avatar {
@@ -248,6 +250,8 @@
             color: var(--text-primary);
             font-weight: bold;
             margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
         }
 
         .chat-last-message {
@@ -256,6 +260,22 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 180px;
+        }
+
+        .chat-time {
+            color: var(--text-secondary);
+            font-size: 10px;
+        }
+
+        .unread-badge {
+            background: var(--accent);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
         }
 
         /* Правая панель */
@@ -264,6 +284,7 @@
             display: flex;
             flex-direction: column;
             background: var(--bg-tertiary);
+            position: relative;
         }
 
         #chat-header {
@@ -273,6 +294,18 @@
             display: flex;
             align-items: center;
             gap: 15px;
+        }
+
+        #back-btn {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 50%;
         }
 
         #chat-avatar {
@@ -309,6 +342,29 @@
             font-size: 12px;
         }
 
+        #chat-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.1);
+        }
+
         #messages-area {
             flex: 1;
             padding: 20px;
@@ -321,12 +377,18 @@
         .message {
             display: flex;
             gap: 10px;
-            max-width: 70%;
+            max-width: 80%;
+            animation: fadeIn 0.3s;
         }
 
         .message.own {
             align-self: flex-end;
             flex-direction: row-reverse;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .message-avatar {
@@ -354,16 +416,144 @@
             padding: 12px 16px;
             border-radius: 18px;
             color: var(--text-primary);
+            max-width: 100%;
+            word-wrap: break-word;
         }
 
         .message.own .message-content {
             background: var(--message-own);
         }
 
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        /* Голосовое сообщение */
+        .voice-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 200px;
+        }
+
+        .voice-play-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--accent);
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .voice-play-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .voice-wave {
+            flex: 1;
+            height: 40px;
+            background: var(--voice-bg);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .voice-progress {
+            height: 100%;
+            background: var(--voice-progress);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .voice-time {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
         .message-time {
             color: var(--text-secondary);
             font-size: 10px;
             margin-top: 5px;
+            text-align: right;
+        }
+
+        /* Панель записи голоса */
+        #voice-recording-panel {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent);
+            border-radius: 30px;
+            padding: 20px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        #recording-timer {
+            color: var(--text-primary);
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        #recording-wave {
+            width: 100%;
+            height: 50px;
+            background: var(--voice-bg);
+            border-radius: 25px;
+            overflow: hidden;
+        }
+
+        #recording-progress {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 1s linear;
+        }
+
+        #recording-buttons {
+            display: flex;
+            gap: 20px;
+        }
+
+        .recording-btn {
+            width: 60px;
+            height: 60px;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .recording-btn.send {
+            background: var(--accent);
+            color: white;
+        }
+
+        .recording-btn.cancel {
+            background: #ff4444;
+            color: white;
+        }
+
+        .recording-btn:hover {
+            transform: scale(1.1);
         }
 
         #input-area {
@@ -375,6 +565,52 @@
         #message-form {
             display: flex;
             gap: 10px;
+            align-items: center;
+        }
+
+        #attach-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        #attach-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        #attach-menu {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 100;
+        }
+
+        .attach-option {
+            padding: 10px 20px;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .attach-option:hover {
+            background: var(--accent);
+            color: white;
         }
 
         #message-input {
@@ -409,7 +645,37 @@
             background: var(--accent-hover);
         }
 
-        /* Панель настроек профиля */
+        #voice-record-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        #voice-record-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        #voice-record-btn.recording {
+            background: #ff4444;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        /* Панель профиля */
         #profile-panel {
             position: absolute;
             top: 0;
@@ -526,11 +792,6 @@
         .color-option:hover {
             transform: scale(1.2);
             border-color: var(--text-primary);
-        }
-
-        .color-option.selected {
-            border-color: var(--text-primary);
-            transform: scale(1.1);
         }
 
         .nickname-input {
@@ -731,20 +992,22 @@
             transform: translateX(400px);
             transition: transform 0.3s;
             z-index: 2000;
+            max-width: 300px;
         }
 
         #notification.show {
             transform: translateX(0);
         }
 
+        /* Адаптация для телефона */
         @media (max-width: 768px) {
             #chats-panel {
                 position: absolute;
+                left: 0;
+                top: 0;
                 width: 100%;
                 height: 100%;
                 z-index: 10;
-                transform: translateX(0);
-                transition: transform 0.3s;
             }
             
             #chats-panel.hide {
@@ -755,9 +1018,25 @@
                 width: 100%;
             }
             
+            #back-btn {
+                display: block;
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+            
             #profile-panel,
             #themes-panel {
                 width: 100%;
+            }
+            
+            #attach-menu {
+                left: 10px;
+            }
+            
+            #voice-recording-panel {
+                width: 95%;
             }
         }
     </style>
@@ -809,21 +1088,48 @@
                 </div>
             </div>
             
+            <div id="search-section">
+                <input type="text" id="search-input" placeholder="🔍 Поиск по чатам...">
+            </div>
+            
             <div id="chats-list"></div>
         </div>
         
         <div id="chat-panel">
             <div id="chat-header">
+                <button id="back-btn" onclick="backToChats()">←</button>
                 <div id="chat-avatar">👤</div>
                 <div id="chat-info">
                     <div id="chat-name">Выберите чат</div>
                     <div id="chat-status"></div>
                 </div>
+                <div id="chat-actions">
+                    <button class="action-btn" onclick="toggleEmojiPicker()">😊</button>
+                </div>
             </div>
+            
             <div id="messages-area"></div>
+            
+            <div id="voice-recording-panel">
+                <div id="recording-timer">00:00</div>
+                <div id="recording-wave">
+                    <div id="recording-progress"></div>
+                </div>
+                <div id="recording-buttons">
+                    <button class="recording-btn send" onclick="sendVoiceMessage()">✓</button>
+                    <button class="recording-btn cancel" onclick="cancelVoiceRecording()">✗</button>
+                </div>
+            </div>
+            
             <div id="input-area">
                 <div id="message-form">
+                    <button id="attach-btn" onclick="toggleAttachMenu()">📎</button>
+                    <div id="attach-menu">
+                        <div class="attach-option" onclick="sendPhoto()">📸 Фото</div>
+                        <div class="attach-option" onclick="startVoiceRecording()">🎤 Голосовое</div>
+                    </div>
                     <input type="text" id="message-input" placeholder="Напишите сообщение...">
+                    <button id="voice-record-btn" onclick="startVoiceRecording()">🎤</button>
                     <button id="send-btn" onclick="sendMessage()">➤</button>
                 </div>
             </div>
@@ -942,6 +1248,17 @@
         let currentChat = null;
         let users = [];
         let chatMessages = {};
+        
+        // Переменные для голосовых сообщений
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingTimer = null;
+        let recordingSeconds = 0;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let javascriptNode = null;
+        let recordingStartTime = null;
 
         // ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
         (function autoLogin() {
@@ -964,14 +1281,12 @@
             console.log('✅ Автовход успешен:', user);
             currentUser = user;
             
-            // Обновляем данные в localStorage
             localStorage.setItem('neyrochat_user', JSON.stringify({
                 id: user.id,
                 username: user.username,
                 avatarColor: user.avatarColor
             }));
             
-            // Загружаем аватарку если есть
             if (user.avatar) {
                 document.getElementById('profile-avatar').innerHTML = `<img src="${user.avatar}">`;
                 document.getElementById('profile-avatar-text').style.display = 'none';
@@ -1035,11 +1350,8 @@
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const avatarData = e.target.result;
-                    
-                    // Отправляем на сервер
                     socket.emit('update-avatar', { avatar: avatarData });
                     
-                    // Обновляем локально
                     document.getElementById('profile-avatar').innerHTML = `<img src="${avatarData}">`;
                     document.getElementById('profile-avatar-text').style.display = 'none';
                     document.getElementById('current-avatar-preview').innerHTML = `<img src="${avatarData}" style="width: 100%; height: 100%; object-fit: cover;">`;
@@ -1055,10 +1367,8 @@
         });
 
         function selectAvatarColor(color) {
-            // Отправляем на сервер
             socket.emit('update-avatar-color', { color: color });
             
-            // Обновляем локально
             document.getElementById('profile-avatar').style.background = color;
             document.getElementById('profile-avatar').innerHTML = '<span id="profile-avatar-text">👤</span>';
             document.getElementById('profile-avatar-text').style.display = 'block';
@@ -1083,7 +1393,6 @@
             currentUser.username = newUsername;
             document.getElementById('profile-name').textContent = newUsername;
             
-            // Обновляем в localStorage
             const savedUser = JSON.parse(localStorage.getItem('neyrochat_user') || '{}');
             savedUser.username = newUsername;
             localStorage.setItem('neyrochat_user', JSON.stringify(savedUser));
@@ -1182,7 +1491,6 @@
                 }));
             }
             
-            // Загружаем аватарку если есть
             if (user.avatar) {
                 document.getElementById('profile-avatar').innerHTML = `<img src="${user.avatar}">`;
                 document.getElementById('profile-avatar-text').style.display = 'none';
@@ -1245,24 +1553,39 @@
 
         function renderUsers() {
             const list = document.getElementById('chats-list');
+            const searchQuery = document.getElementById('search-input').value.toLowerCase();
             
-            if (!users || users.length === 0) {
+            let filteredUsers = users;
+            if (searchQuery) {
+                filteredUsers = users.filter(u => u.username.toLowerCase().includes(searchQuery));
+            }
+            
+            if (!filteredUsers || filteredUsers.length === 0) {
                 list.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">👥 Нет других пользователей</div>';
                 return;
             }
             
-            list.innerHTML = users.map(user => {
+            list.innerHTML = filteredUsers.map(user => {
                 const userMessages = chatMessages[user.id] || [];
                 const lastMsg = userMessages[userMessages.length - 1];
+                const unread = userMessages.filter(m => m.from == user.id && !m.read).length;
                 
-                // Определяем содержимое аватарки
                 let avatarContent = '👤';
                 if (user.avatar) {
                     avatarContent = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;">`;
                 }
                 
+                let lastMessageText = '';
+                if (lastMsg) {
+                    if (lastMsg.type === 'voice') {
+                        lastMessageText = '🎤 Голосовое сообщение';
+                    } else {
+                        lastMessageText = lastMsg.text;
+                    }
+                }
+                
                 return `
-                    <div class="chat-item" onclick="openChat('${user.id}')">
+                    <div class="chat-item ${currentChat == user.id ? 'active' : ''}" onclick="openChat('${user.id}')">
                         <div class="chat-avatar" style="background: ${user.avatarColor || '#4a9c4a'}">
                             ${avatarContent}
                             ${user.online ? '<span class="online-indicator"></span>' : ''}
@@ -1270,12 +1593,13 @@
                         <div class="chat-info">
                             <div class="chat-name">
                                 ${user.username}
-                                ${user.online ? '🟢' : '⚪'}
+                                <span class="chat-time">${lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString() : ''}</span>
                             </div>
                             <div class="chat-last-message">
-                                ${lastMsg ? (lastMsg.from == currentUser?.id ? 'Вы: ' : '') + lastMsg.text : 'Нет сообщений'}
+                                ${lastMsg ? (lastMsg.from == currentUser?.id ? 'Вы: ' : '') + lastMessageText : 'Нет сообщений'}
                             </div>
                         </div>
+                        ${unread ? `<span class="unread-badge">${unread}</span>` : ''}
                     </div>
                 `;
             }).join('');
@@ -1287,7 +1611,6 @@
             
             document.getElementById('chat-name').textContent = user.username;
             
-            // Аватарка в шапке чата
             if (user.avatar) {
                 document.getElementById('chat-avatar').innerHTML = `<img src="${user.avatar}">`;
             } else {
@@ -1297,7 +1620,15 @@
             
             document.getElementById('chat-status').textContent = user.online ? '🟢 Онлайн' : '⚪ Офлайн';
             
+            if (window.innerWidth <= 768) {
+                document.getElementById('chats-panel').classList.add('hide');
+            }
+            
             socket.emit('get-messages', userId);
+        }
+
+        function backToChats() {
+            document.getElementById('chats-panel').classList.remove('hide');
         }
 
         // ========== СООБЩЕНИЯ ==========
@@ -1323,7 +1654,11 @@
             renderUsers();
             
             if (msg.from != currentUser?.id && chatId != currentChat) {
-                showNotification(`${msg.fromUsername}: ${msg.text}`);
+                let messageText = msg.text;
+                if (msg.type === 'voice') {
+                    messageText = '🎤 Голосовое сообщение';
+                }
+                showNotification(`${msg.fromUsername}: ${messageText}`);
             }
         });
 
@@ -1347,13 +1682,28 @@
                     avatarContent = `<img src="${sender.avatar}" style="width: 100%; height: 100%; object-fit: cover;">`;
                 }
                 
+                let messageContent = '';
+                if (msg.type === 'voice') {
+                    messageContent = `
+                        <div class="voice-message" data-audio="${msg.audio}">
+                            <button class="voice-play-btn" onclick="playVoiceMessage(this)">▶</button>
+                            <div class="voice-wave">
+                                <div class="voice-progress"></div>
+                                <span class="voice-time">${msg.duration || '00:05'}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messageContent = `<div class="message-text">${escapeHtml(msg.text)}</div>`;
+                }
+                
                 return `
                     <div class="message ${isOwn ? 'own' : ''}">
                         <div class="message-avatar" style="background: ${sender.avatarColor || '#4a9c4a'}">
                             ${avatarContent}
                         </div>
                         <div class="message-content">
-                            <div>${escapeHtml(msg.text)}</div>
+                            ${messageContent}
                             <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
                         </div>
                     </div>
@@ -1380,6 +1730,235 @@
                 input.value = '';
             }
         }
+
+        // ========== ЭМОДЗИ ==========
+        const emojis = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', '👎', '🔥', '✨', '❤️', 
+                       '💔', '⭐', '🎉', '🎊', '🎈', '🎁', '🐱', '🐶', '🐼', '🐨', '🦊',
+                       '🍕', '🍔', '🍟', '🌭', '🍿', '🥤', '☕', '🍺', '🍻'];
+
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emoji-picker');
+            
+            if (!picker) {
+                createEmojiPicker();
+            }
+            
+            if (picker.style.display === 'grid') {
+                picker.style.display = 'none';
+            } else {
+                picker.style.display = 'grid';
+            }
+        }
+
+        function createEmojiPicker() {
+            const picker = document.createElement('div');
+            picker.id = 'emoji-picker';
+            picker.style.cssText = `
+                position: absolute;
+                bottom: 100px;
+                right: 30px;
+                background: var(--bg-secondary);
+                border: 2px solid var(--accent);
+                border-radius: 15px;
+                padding: 10px;
+                display: none;
+                grid-template-columns: repeat(8, 1fr);
+                gap: 5px;
+                z-index: 1000;
+                max-height: 200px;
+                overflow-y: auto;
+            `;
+            
+            emojis.forEach(emoji => {
+                const div = document.createElement('div');
+                div.className = 'emoji-item';
+                div.textContent = emoji;
+                div.style.cssText = `
+                    width: 35px;
+                    height: 35px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    border-radius: 5px;
+                    font-size: 20px;
+                `;
+                div.onmouseover = () => div.style.background = 'var(--accent)';
+                div.onmouseout = () => div.style.background = 'transparent';
+                div.onclick = () => {
+                    document.getElementById('message-input').value += emoji;
+                    picker.style.display = 'none';
+                };
+                picker.appendChild(div);
+            });
+            
+            document.body.appendChild(picker);
+        }
+
+        // ========== ГОЛОСОВЫЕ СООБЩЕНИЯ ==========
+        async function startVoiceRecording() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    showNotification('❌ Ваш браузер не поддерживает запись голоса');
+                    return;
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Здесь можно отправить голосовое сообщение
+                    // Пока просто показываем уведомление
+                    showNotification('✅ Голосовое сообщение записано');
+                    
+                    // Очищаем
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                // Показываем панель записи
+                document.getElementById('voice-recording-panel').style.display = 'flex';
+                document.getElementById('voice-record-btn').classList.add('recording');
+                
+                // Запускаем таймер
+                recordingSeconds = 0;
+                recordingTimer = setInterval(() => {
+                    recordingSeconds++;
+                    const minutes = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
+                    const seconds = (recordingSeconds % 60).toString().padStart(2, '0');
+                    document.getElementById('recording-timer').textContent = `${minutes}:${seconds}`;
+                    
+                    // Анимируем прогресс
+                    const progress = (recordingSeconds / 60) * 100;
+                    document.getElementById('recording-progress').style.width = `${Math.min(progress, 100)}%`;
+                }, 1000);
+                
+                // Запускаем запись
+                mediaRecorder.start();
+                
+                // Автоматически останавливаем через 60 секунд
+                setTimeout(() => {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        stopVoiceRecording();
+                    }
+                }, 60000);
+                
+            } catch (err) {
+                console.error('Ошибка доступа к микрофону:', err);
+                showNotification('❌ Нет доступа к микрофону');
+            }
+        }
+
+        function stopVoiceRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            
+            clearInterval(recordingTimer);
+            document.getElementById('voice-recording-panel').style.display = 'none';
+            document.getElementById('voice-record-btn').classList.remove('recording');
+            document.getElementById('recording-progress').style.width = '0%';
+        }
+
+        function cancelVoiceRecording() {
+            stopVoiceRecording();
+            showNotification('❌ Запись отменена');
+        }
+
+        function sendVoiceMessage() {
+            if (!currentChat) {
+                showNotification('❌ Выберите чат');
+                stopVoiceRecording();
+                return;
+            }
+            
+            stopVoiceRecording();
+            
+            // Здесь будет отправка голосового сообщения на сервер
+            showNotification('✅ Голосовое сообщение отправлено');
+            
+            // Пока добавляем тестовое сообщение
+            const testVoiceMsg = {
+                from: currentUser.id,
+                fromUsername: currentUser.username,
+                to: currentChat,
+                type: 'voice',
+                duration: '00:' + recordingSeconds.toString().padStart(2, '0'),
+                timestamp: new Date().toISOString()
+            };
+            
+            const chatId = currentChat;
+            if (!chatMessages[chatId]) chatMessages[chatId] = [];
+            chatMessages[chatId].push(testVoiceMsg);
+            renderMessages();
+        }
+
+        // Воспроизведение голосового сообщения
+        function playVoiceMessage(button) {
+            const voiceMessage = button.closest('.voice-message');
+            const progressBar = voiceMessage.querySelector('.voice-progress');
+            const timeSpan = voiceMessage.querySelector('.voice-time');
+            
+            if (button.textContent === '▶') {
+                button.textContent = '⏸';
+                
+                // Имитация воспроизведения
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 2;
+                    progressBar.style.width = progress + '%';
+                    
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        button.textContent = '▶';
+                        progressBar.style.width = '0%';
+                    }
+                }, 100);
+                
+                // Сохраняем интервал для остановки
+                voiceMessage.dataset.interval = interval;
+            } else {
+                button.textContent = '▶';
+                clearInterval(voiceMessage.dataset.interval);
+                progressBar.style.width = '0%';
+            }
+        }
+
+        // ========== МЕНЮ ВЛОЖЕНИЙ ==========
+        function toggleAttachMenu() {
+            const menu = document.getElementById('attach-menu');
+            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        function sendPhoto() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    // Здесь будет отправка фото
+                    showNotification('📸 Отправка фото пока в разработке');
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
+            document.getElementById('attach-menu').style.display = 'none';
+        }
+
+        // ========== ПОИСК ==========
+        document.getElementById('search-input').addEventListener('input', () => {
+            renderUsers();
+        });
 
         // ========== УВЕДОМЛЕНИЯ ==========
         function requestNotificationPermission() {
@@ -1413,6 +1992,12 @@
         // ========== СОБЫТИЯ ==========
         document.getElementById('message-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#attach-btn') && !e.target.closest('#attach-menu')) {
+                document.getElementById('attach-menu').style.display = 'none';
+            }
         });
 
         socket.on('connect', () => {
