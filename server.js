@@ -193,3 +193,50 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Сервер запущен на порту ${PORT}`);
 });
+// ========== ПИНГ ДЛЯ БОРЬБЫ СО СНОМ ==========
+app.get('/ping', (req, res) => {
+    res.send('pong');
+});
+
+// ========== АВТОМАТИЧЕСКИЙ ВХОД ==========
+socket.on('auto-login', (userId) => {
+    try {
+        const stmt = db.prepare('SELECT id, username, avatarColor FROM users WHERE id = ?');
+        const user = stmt.get(userId);
+        
+        if (user) {
+            socket.userId = user.id;
+            socket.username = user.username;
+            
+            onlineUsers[user.id] = socket.id;
+            
+            socket.emit('auto-login-success', {
+                id: user.id,
+                username: user.username,
+                avatarColor: user.avatarColor
+            });
+        }
+    } catch (err) {
+        console.log('Ошибка автовхода:', err);
+    }
+});
+
+// ========== ПЕЧАТАЕТ... ==========
+socket.on('typing', (data) => {
+    const targetSocket = onlineUsers[data.to];
+    if (targetSocket) {
+        io.to(targetSocket).emit('typing', {
+            username: socket.username,
+            typing: data.typing
+        });
+    }
+});
+
+// ========== РЕАКЦИИ ==========
+socket.on('add-reaction', (data) => {
+    // Здесь можно добавить сохранение реакций
+    io.emit('message-updated', {
+        id: data.messageId,
+        reactions: { [data.emoji]: 1 }
+    });
+});
